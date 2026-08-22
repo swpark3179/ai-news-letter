@@ -1,0 +1,642 @@
+/* 기사 상세 — 디자인 원본 433~574행 (isArticle) */
+
+.wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 28px 72px;
+}
+
+.paper {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  padding: 36px 44px 52px;
+}
+
+.back {
+  font-size: 12px;
+  color: var(--gray-500);
+  text-decoration: none;
+}
+
+.back:hover {
+  color: var(--gray-700);
+  text-decoration: none;
+}
+
+.head {
+  max-width: 820px;
+  margin: 22px auto 0;
+  text-align: center;
+}
+
+.kicker {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1.6px;
+  color: var(--purple-600);
+  text-transform: uppercase;
+}
+
+.title {
+  margin: 14px 0 0;
+  font: 900 46px/1.16 var(--font-sans);
+  letter-spacing: -2px;
+  text-wrap: pretty;
+}
+
+.deck {
+  margin: 16px 0 0;
+  font: 400 19px/1.6 var(--font-sans);
+  color: var(--gray-600);
+  text-wrap: pretty;
+}
+
+.bylineBar {
+  max-width: 820px;
+  margin: 26px auto 0;
+  padding: 13px 0;
+  border-top: 1px solid var(--gray-900);
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+}
+
+.avatar {
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11.5px;
+  font-weight: 700;
+}
+
+.authorName {
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.authorRole {
+  color: var(--gray-500);
+  font-weight: 400;
+}
+
+.publishedAt {
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.srcBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 4px 9px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+}
+
+.srcNote {
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+
+.scrapBtn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.scrapBtnOn {
+  border-color: var(--purple-600);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.scrapBtn:disabled {
+  opacity: 0.5;
+  cursor: default;
+}
+
+/* ---------- 본문 + 사이드 ---------- */
+
+.contentGrid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 300px;
+  gap: 48px;
+  max-width: 1140px;
+  margin: 0 auto;
+}
+
+.main {
+  padding-top: 30px;
+  max-width: 820px;
+  justify-self: center;
+  width: 100%;
+}
+
+.figure {
+  margin: 0 0 26px;
+}
+
+.figureBox {
+  position: relative;
+  width: 100%;
+  height: 340px;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+}
+
+.figcaption {
+  margin-top: 9px;
+  font-size: 11.5px;
+  color: var(--gray-500);
+  border-left: 2px solid var(--purple-600);
+  padding-left: 9px;
+}
+
+.h3 {
+  margin: 30px 0 12px;
+  font: 800 22px/1.35 var(--font-sans);
+  letter-spacing: -0.7px;
+}
+
+.quote {
+  margin: 26px 0;
+  padding: 18px 24px;
+  background: var(--purple-50);
+  border-left: 3px solid var(--purple-600);
+  font: 500 17px/1.62 var(--font-sans);
+  color: var(--purple-900);
+}
+
+.p {
+  margin: 0 0 17px;
+  font: 400 16.5px/1.85 var(--font-sans);
+  color: var(--gray-800);
+  text-wrap: pretty;
+}
+
+.aside {
+  padding-top: 30px;
+}
+
+.asideSticky {
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+.card {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  background: #fff;
+}
+
+.cardTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.sourceList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  text-decoration: none;
+}
+
+.sourceRow:hover {
+  border-color: var(--purple-300);
+  background: var(--purple-25);
+  text-decoration: none;
+}
+
+.sourceTag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 6px;
+  border-radius: var(--radius-sm);
+  flex-shrink: 0;
+}
+
+.sourceLabel {
+  font-size: 12px;
+  color: var(--gray-700);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.sourceArrow {
+  margin-left: auto;
+  color: var(--gray-400);
+  font-size: 12px;
+}
+
+.deckCard {
+  border: 1px solid var(--purple-200);
+  background: var(--purple-50);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+}
+
+.deckCardTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--purple-700);
+  text-transform: uppercase;
+}
+
+.deckRow {
+  margin-top: 11px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pdfIcon {
+  width: 34px;
+  height: 42px;
+  background: #fff;
+  border: 1px solid var(--purple-200);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--purple-700);
+  flex-shrink: 0;
+}
+
+.deckName {
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.deckMeta {
+  font-size: 11px;
+  color: var(--gray-600);
+}
+
+.deckDownload {
+  margin-top: 12px;
+  display: block;
+  padding: 8px;
+  background: #fff;
+  border-radius: var(--radius-md);
+  text-align: center;
+  font-size: 12.5px;
+  font-weight: 500;
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+.deckDownload:hover {
+  background: var(--purple-100);
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+.relatedList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.relatedItem {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.relatedItem:hover {
+  opacity: 0.65;
+  text-decoration: none;
+  color: inherit;
+}
+
+.relatedKicker {
+  font-size: 10px;
+  font-weight: 700;
+  color: var(--purple-600);
+  letter-spacing: 0.8px;
+  text-transform: uppercase;
+}
+
+.relatedTitle {
+  margin-top: 5px;
+  font: 600 13.5px/1.42 var(--font-sans);
+  text-wrap: pretty;
+}
+
+.relatedByline {
+  margin-top: 4px;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+/* ---------- 토론 코멘트 ---------- */
+
+.comments {
+  margin-top: 34px;
+  padding-top: 20px;
+  border-top: 1px solid var(--gray-900);
+}
+
+.commentsHead {
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.commentsTitle {
+  font-size: 13px;
+  font-weight: 700;
+}
+
+.commentsCount {
+  color: var(--gray-400);
+  font-weight: 400;
+}
+
+.commentsNote {
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.composer {
+  display: flex;
+  gap: 11px;
+  margin: 16px 0 22px;
+}
+
+.composerAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.composerBox {
+  flex: 1;
+  min-width: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-lg);
+  background: #fff;
+  padding: 12px 14px;
+}
+
+.composerHead {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  margin-bottom: 8px;
+}
+
+.composerName {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.roleTag {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 2px 7px;
+  border-radius: var(--radius-full);
+}
+
+.composerInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  padding: 0;
+  resize: vertical;
+  font: 400 13.5px/1.7 var(--font-sans);
+  color: var(--gray-800);
+  outline: none;
+  background: transparent;
+}
+
+.composerFoot {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  margin-top: 10px;
+  padding-top: 10px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.composerCount {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.composerSubmit {
+  margin-left: auto;
+  padding: 8px 16px;
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 500;
+  color: #fff;
+  background: var(--purple-300);
+}
+
+.composerSubmitOn {
+  background: var(--purple-600);
+}
+
+.composerSubmitOn:hover {
+  background: var(--purple-700);
+}
+
+.commentList {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+}
+
+.comment {
+  display: flex;
+  gap: 11px;
+}
+
+.commentAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.commentBody {
+  flex: 1;
+  min-width: 0;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 12px 14px;
+}
+
+.commentHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.commentName {
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
+.commentWhen {
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.commentText {
+  margin-top: 6px;
+  font: 400 13.5px/1.65 var(--font-sans);
+  color: var(--gray-700);
+  text-wrap: pretty;
+}
+
+.guestNotice {
+  margin: 16px 0 22px;
+  padding: 14px 16px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+
+.errorText {
+  margin-top: 8px;
+  font-size: 12px;
+  color: var(--red-600);
+}
+
+/* --------------------------------------------------------------------------
+   작성자 본인 · 관리자에게만 보이는 수정/삭제 줄과 임시저장 배지
+   -------------------------------------------------------------------------- */
+
+.ownerBar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-left: auto;
+  flex-wrap: wrap;
+}
+
+.ownerEdit {
+  padding: 7px 14px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  border-radius: var(--radius-full);
+  font-size: 12.5px;
+  font-weight: 600;
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ownerEdit:hover {
+  border-color: var(--purple-300);
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+.ownerDelete {
+  padding: 7px 14px;
+  border: 1px solid var(--red-200);
+  background: #fff;
+  color: var(--red-700);
+  border-radius: var(--radius-full);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ownerDelete:hover:not(:disabled) {
+  border-color: var(--red-400);
+  background: var(--red-50);
+}
+
+.ownerDelete:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ownerError {
+  font-size: 12px;
+  color: var(--red-700);
+}
+
+/** 아직 발행하지 않은 글임을 본인에게 알린다 */
+.draftBadge {
+  display: inline-block;
+  margin-bottom: 10px;
+  padding: 5px 12px;
+  background: var(--yellow-50);
+  border: 1px solid var(--yellow-200);
+  border-radius: var(--radius-full);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--yellow-800);
+}

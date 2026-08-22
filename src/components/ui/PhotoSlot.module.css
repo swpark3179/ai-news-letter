@@ -1,0 +1,28 @@
+.empty {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  background: var(--gray-100);
+  color: var(--gray-400);
+  text-align: center;
+  padding: 12px;
+}
+
+.label {
+  font-size: 11.5px;
+  line-height: 1.5;
+  color: var(--gray-500);
+  word-break: keep-all;
+}
+
+.image {
+  object-fit: cover;
+}
+
+.rounded {
+  border-radius: var(--radius-md);
+}

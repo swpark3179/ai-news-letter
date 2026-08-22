@@ -1,0 +1,205 @@
+/* 디자인 원본 131~165행 (pcSignedIn 헤더 + pcGuest 배너) */
+
+.header {
+  position: sticky;
+  top: 0;
+  z-index: 900;
+  background: #fff;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.inner {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 0 28px;
+  height: 60px;
+  display: flex;
+  align-items: center;
+  gap: 32px;
+}
+
+.logo {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.logo:hover {
+  text-decoration: none;
+}
+
+.logoMark {
+  width: 22px;
+  height: 22px;
+  border-radius: var(--radius-md);
+  background: var(--purple-600);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font: 800 11px/1 var(--font-display);
+  color: #fff;
+  letter-spacing: -0.5px;
+}
+
+.logoText {
+  font: 700 15px/1 var(--font-sans);
+  letter-spacing: -0.4px;
+  color: var(--gray-900);
+}
+
+.nav {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  flex: 1 1 auto;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+}
+
+.navItem {
+  padding: 8px;
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  font-weight: 400;
+  color: var(--gray-700);
+  background: transparent;
+  white-space: nowrap;
+  flex-shrink: 0;
+  transition: background var(--duration-fast) var(--ease-standard);
+  text-decoration: none;
+}
+
+.navItem:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  text-decoration: none;
+}
+
+.navItemActive {
+  font-weight: 600;
+  color: var(--purple-700);
+  background: var(--purple-50);
+}
+
+.navItemActive:hover {
+  color: var(--purple-700);
+}
+
+.right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex: 0 1 auto;
+  min-width: 0;
+}
+
+.iconBtn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 36px;
+  height: 36px;
+  flex-shrink: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  color: var(--gray-500);
+  cursor: pointer;
+  background: #fff;
+}
+
+.iconBtn:hover {
+  background: var(--gray-50);
+}
+
+.adminBtn {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  height: 36px;
+  padding: 0 12px;
+  background: var(--purple-600);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.adminBtn:hover {
+  background: var(--purple-700);
+  color: #fff;
+  text-decoration: none;
+}
+
+.loginBtn {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--purple-200);
+  background: var(--purple-50);
+  color: var(--purple-700);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.loginBtn:hover {
+  background: var(--purple-100);
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+.avatar {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  font-weight: 700;
+  border: 1px solid var(--purple-200);
+  cursor: pointer;
+}
+
+/* ---------- 게스트 배너 ---------- */
+
+.guestWrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 16px 28px 0;
+}
+
+.guestBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  background: var(--yellow-50);
+  border: 1px solid var(--yellow-200);
+  border-radius: var(--radius-lg);
+  padding: 11px 16px;
+}
+
+.guestText {
+  font-size: 12.5px;
+  color: var(--yellow-800);
+}
+
+.guestLogin {
+  margin-left: auto;
+  flex-shrink: 0;
+  font-size: 12.5px;
+  font-weight: 600;
+  color: var(--purple-700);
+  text-decoration: none;
+}

@@ -1,36 +1,159 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# AI 뉴스레터
 
-## Getting Started
+Samsung SDS AI Unit 사내 일간 뉴스레터. Next.js 16 (App Router) + Supabase.
 
-First, run the development server:
+claude.ai/design 프로젝트 `AI 뉴스레터.dc.html` 를 웹서비스와 관리자 페이지로
+구현한 것입니다. (모바일 앱은 이번 범위에서 제외)
+
+---
+
+## 네 개의 카테고리
+
+| 카테고리 | 출처 | 채우는 방법 |
+|---|---|---|
+| 긱뉴스 데일리 | news.hada.io | 자동 수집 — **LLM 미사용**, 제목·요약을 원문 그대로 |
+| 트렌드 브리핑 | GitHub Trending · Hacker News · arXiv · 긱뉴스 | 자동 수집 + LLM 이 한국어 기사 작성 |
+| 위클리 리뷰 | 유닛원 4명이 매주 1건 | 관리자 화면에서 직접 작성 |
+| 심층 분석 | 월 1회 정기 발표 | 관리자 화면 (사진 · 발표 자료 첨부) |
+
+---
+
+## 빠른 시작
 
 ```bash
-npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
+npm install
+cp .env.local.example .env.local     # Supabase 키 등을 채운다
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+Supabase 테이블을 먼저 만듭니다 → [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md)
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+```bash
+npm run sync:geeknews -- --dry-run   # 파싱만 확인 (DB 미기록)
+npm run sync:geeknews                # 실제 적재
+npm run sync:trend -- --limit=5      # 5건만 기사화해 확인
+npm run dev                          # http://localhost:3000
+```
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+로그인은 목업입니다. `/login` 에 들어가면 2~3초 뒤 자동으로 통과합니다.
 
-## Learn More
+---
 
-To learn more about Next.js, take a look at the following resources:
+## 화면
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
+| 경로 | 내용 |
+|---|---|
+| `/login` | SSO 4단계 진행 · 실패 3종 · 사번 로그인 · 게스트 |
+| `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바, 심층 분석, 위클리 리뷰 |
+| `/sections/[geek\|trend\|review\|deep]` | 카테고리 목록 (트렌드는 출처 필터) |
+| `/articles/[id]` | 유닛원 기사 상세 (심층 분석은 토론 코멘트 포함) |
+| `/articles/trend/[publicId]` | 트렌드 브리핑 상세 |
+| `/meetings` | 모임 아카이브 · 발표 순번 |
+| `/admin` | 대시보드 + 수집 파이프라인 콘솔 |
+| `/admin/compose` | 블록 에디터 + 실시간 지면 미리보기 |
+| `/admin/uploads` | 분할 암호화 업로드 이력 |
+| `/admin/members` | 유닛 멤버 · 로테이션 |
 
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
+---
 
-## Deploy on Vercel
+## 구조
 
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
+```
+src/
+  app/
+    (site)/            공개 화면 — 헤더 + 게스트 배너 레이아웃
+    admin/             관리자 (레이아웃에서 is_admin 재확인)
+    api/               auth · comments · articles · uploads · admin/pipeline
+    tokens.css         디자인 토큰 (claude.ai/design 원본을 그대로 이식)
+  components/          화면별 컴포넌트 + 같은 폴더의 .module.css
+  lib/
+    auth/sso/          ★ 사내 SSO 연동 자리 (client.ts / decode.ts)
+    data/              읽기 쿼리
+    llm/               Gemini · OpenAI 공통 인터페이스
+    sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
+    supabase/          service_role 클라이언트
+  proxy.ts             경로별 접근 제어
+scripts/sync/          CLI 진입점 (tsx)
+supabase/migrations/   스키마 SQL 8개
+.github/workflows/     동기화 워크플로 3개
+```
 
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+**스타일링** — CSS Modules + `src/app/tokens.css`.
+디자인 원본이 `var(--purple-600)` 같은 토큰을 인라인으로 참조하고 있어서,
+변수명을 그대로 유지하는 것이 재현도의 핵심입니다.
+
+---
+
+## 동기화
+
+### 긱뉴스 (LLM 없음)
+
+`https://news.hada.io/?page=N` 목록을 `cheerio` 로 파싱합니다.
+
+- **PK = 요약부 링크** (`div.topicdesc > a[href]`) — `topic?id=NNNNN` 또는
+  긱뉴스 자체글의 `/article/<slug>`. `on conflict do nothing` 이라 재실행해도
+  중복이 생기지 않습니다.
+- 작성일은 `<time datetime="…+09:00">` 속성을 그대로 씁니다 ("n일전" 역산 불필요).
+- 점수순 목록이라 오래된 글이 섞여 있어, 기간 안 항목이 0건인 페이지가 2번 연속
+  나오면 멈춥니다 (최대 8페이지).
+- 요청 간 1.5초 간격 + 403/429 지수 백오프.
+- Atom 피드(`/rss/news`)로 최근 항목의 요약을 더 긴 원문으로 보강합니다.
+
+### 트렌드 브리핑 (LLM 사용)
+
+| 출처 | 방법 | PK |
+|---|---|---|
+| GitHub Trending | `?since=daily\|weekly\|monthly` 3회 스크레이핑 후 합집합 | `https://github.com/{owner}/{repo}` |
+| Hacker News | 공식 Firebase API + Algolia 로 상위 댓글 | `https://news.ycombinator.com/item?id=N` |
+| arXiv | 공식 Atom API (cs.AI/CL/IR/LG) | `https://arxiv.org/abs/{id}` |
+| 긱뉴스 | 방금 수집한 `geek_news` 재사용 | 토픽 URL |
+
+신규 URL 만 골라 컨텍스트(README / 상위 댓글 / 초록)를 모으고, 5건씩 묶어 LLM 에
+구조화 JSON 으로 요청합니다. 1회 실행당 신규 상한 30건이며, 초과분은
+`sync_runs.logs` 에 명시적으로 남깁니다.
+
+```bash
+npm run sync:trend -- --dry-run              # LLM 없이 수집 대상만
+npm run sync:trend -- --limit=5
+npm run sync:trend -- --provider=openai
+npm run sync:trend -- --only=github,arxiv
+```
+
+---
+
+## 문서
+
+- **[docs/SUPABASE_MANUAL_SETUP.md](docs/SUPABASE_MANUAL_SETUP.md) — 처음 셋업하는 경우 여기부터** (대시보드 단계별 절차, 약 15분)
+- [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) — 테이블 구조 · RLS 설계 배경 · 운영 쿼리
+- [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) — Vercel 배포 절차 · 플랫폼 한도 · 공개 전 점검
+- [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
+- [docs/SSO_INTEGRATION.md](docs/SSO_INTEGRATION.md) — 사내 SSO 실구현 인계
+
+---
+
+## 알아 둘 것
+
+**사내 프록시** — `HTTP_PROXY` / `HTTPS_PROXY` 가 있으면 수집 스크립트가 자동으로
+undici 디스패처를 설정합니다 (`src/lib/sync/proxy.ts`). Node 의 내장 fetch 는
+이 환경변수를 기본적으로 무시하기 때문에 필요한 처리입니다.
+
+**User-Agent** — news.hada.io 는 UA 에 `bot` 이 들어가면 403 을 돌려줍니다
+(robots.txt 는 `User-agent: *  Allow: /` 로 열려 있지만 WAF 단에서 막힘).
+일반 브라우저 UA 를 쓰되 요청 간격을 넉넉히 두고, 저장하는 모든 항목에 원문 링크와
+출처를 함께 남깁니다.
+
+**RLS** — 모든 테이블에 RLS 를 켜고 정책은 두지 않았습니다. 브라우저에 Supabase
+키를 내려보내지 않고 서버가 `service_role` 로만 접근합니다. 자세한 배경은
+Supabase 문서를 참고하세요.
+
+---
+
+## 명령어
+
+```bash
+npm run dev            # 개발 서버
+npm run build          # 프로덕션 빌드
+npm run typecheck      # tsc --noEmit
+npm run lint
+npm run sync:geeknews
+npm run sync:trend
+```

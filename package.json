@@ -6,19 +6,33 @@
     "dev": "next dev",
     "build": "next build",
     "start": "next start",
-    "lint": "eslint"
+    "lint": "eslint",
+    "typecheck": "tsc --noEmit",
+    "sync:geeknews": "tsx scripts/sync/geeknews.ts",
+    "sync:trend": "tsx scripts/sync/trend.ts",
+    "sql:bundle": "node scripts/bundle-sql.mjs"
   },
   "dependencies": {
+    "@google/genai": "^2.18.0",
+    "@supabase/supabase-js": "^2.112.3",
+    "cheerio": "^1.2.0",
+    "jose": "^6.2.9",
     "next": "16.3.1",
+    "openai": "^7.5.0",
     "react": "19.2.8",
-    "react-dom": "19.2.8"
+    "react-dom": "19.2.8",
+    "server-only": "^0.0.1",
+    "undici": "^8.10.0",
+    "zod": "^4.4.3"
   },
   "devDependencies": {
     "@types/node": "^20",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dotenv": "^17.4.2",
     "eslint": "^9",
     "eslint-config-next": "16.3.1",
+    "tsx": "^4.23.12",
     "typescript": "^5"
   }
 }

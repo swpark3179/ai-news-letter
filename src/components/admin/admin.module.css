@@ -1,0 +1,510 @@
+/* 관리자 콘솔 — 디자인 원본 659~788행 (isAdmin) */
+
+.shell {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 28px 72px;
+  display: grid;
+  grid-template-columns: 216px minmax(0, 1fr);
+  gap: 24px;
+}
+
+.lnbCard {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 14px;
+  position: sticky;
+  top: 84px;
+}
+
+.lnbTitle {
+  font-size: 10.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--gray-400);
+  text-transform: uppercase;
+  padding: 6px 10px;
+}
+
+.lnbList {
+  margin-top: 6px;
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.lnbItem {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  padding: 9px 10px;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 400;
+  color: var(--gray-700);
+  background: transparent;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.lnbItem:hover {
+  background: var(--gray-100);
+  color: var(--gray-700);
+  text-decoration: none;
+}
+
+.lnbItemOn {
+  font-weight: 600;
+  color: var(--purple-700);
+  background: var(--purple-50);
+}
+
+.lnbItemOn:hover {
+  color: var(--purple-700);
+}
+
+.lnbDot {
+  width: 5px;
+  height: 5px;
+  border-radius: 50%;
+  background: var(--gray-300);
+}
+
+.lnbDotOn {
+  background: var(--purple-600);
+}
+
+.lnbNotice {
+  margin-top: 14px;
+  padding: 12px;
+  background: var(--gray-50);
+  border-radius: var(--radius-lg);
+  font-size: 11px;
+  line-height: 1.65;
+  color: var(--gray-600);
+}
+
+.lnbNotice strong {
+  color: var(--gray-900);
+}
+
+/* ---------- 페이지 헤더 ---------- */
+
+.pageHead {
+  display: flex;
+  align-items: flex-end;
+  gap: 14px;
+  margin-bottom: 20px;
+  flex-wrap: wrap;
+}
+
+.pageTitle {
+  font: 800 28px/1.2 var(--font-sans);
+  letter-spacing: -1px;
+}
+
+.pageSub {
+  margin-top: 6px;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.ghostBtn {
+  margin-left: auto;
+  padding: 9px 14px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  color: var(--gray-800);
+  text-decoration: none;
+  white-space: nowrap;
+}
+
+.ghostBtn:hover {
+  background: var(--gray-50);
+  color: var(--gray-800);
+  text-decoration: none;
+}
+
+/* ---------- 통계 카드 ---------- */
+
+.statGrid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 14px;
+  margin-bottom: 20px;
+}
+
+.statCard {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+  box-shadow: var(--shadow-xs);
+}
+
+.statLabel {
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.statValueRow {
+  margin-top: 8px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px;
+}
+
+.statValue {
+  font: 700 26px/1 var(--font-sans);
+  letter-spacing: -1px;
+}
+
+.statUnit {
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.statDelta {
+  margin-top: 8px;
+  font-size: 11px;
+  font-weight: 500;
+}
+
+/* ---------- 패널 공통 ---------- */
+
+.panel {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 22px;
+  margin-bottom: 20px;
+  box-shadow: var(--shadow-xs);
+}
+
+.panelHead {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.panelTitle {
+  font: 700 17px/1.3 var(--font-sans);
+  letter-spacing: -0.5px;
+}
+
+.panelDesc {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+
+.primaryBtn {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 11px 18px;
+  background: var(--purple-600);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.primaryBtn:hover:not(:disabled) {
+  background: var(--purple-700);
+  color: #fff;
+  text-decoration: none;
+}
+
+.primaryBtn:disabled {
+  background: var(--purple-400);
+  cursor: default;
+}
+
+/* ---------- 파이프라인 ---------- */
+
+.sourceGrid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.sourceCard {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 14px;
+}
+
+.sourceHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.sourceTag {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.5px;
+  padding: 3px 7px;
+  border-radius: var(--radius-sm);
+}
+
+.sourceLast {
+  margin-left: auto;
+  font-size: 10.5px;
+  color: var(--gray-500);
+  font-family: var(--font-mono);
+}
+
+.sourceCount {
+  margin-top: 11px;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.sourceNote {
+  margin-top: 4px;
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.console {
+  margin-top: 16px;
+  background: var(--gray-900);
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  min-height: 96px;
+}
+
+.consoleHead {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  margin-bottom: 9px;
+}
+
+.consoleDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: var(--gray-600);
+}
+
+.consoleDotRunning {
+  background: var(--yellow-400);
+}
+
+.consoleDotDone {
+  background: var(--green-500);
+}
+
+.consoleDotFailed {
+  background: var(--red-500);
+}
+
+.consoleName,
+.consolePct {
+  font-size: 11px;
+  color: var(--gray-400);
+  font-family: var(--font-mono);
+}
+
+.consolePct {
+  margin-left: auto;
+}
+
+.consoleLines {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  max-height: 280px;
+  overflow-y: auto;
+}
+
+.consoleLine {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--gray-300);
+  word-break: break-all;
+}
+
+.consoleLineDone {
+  color: var(--green-400);
+}
+
+.consoleLineWarn {
+  color: var(--yellow-300);
+}
+
+.consoleLineError {
+  color: var(--red-400);
+}
+
+.consoleIdle {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  color: var(--gray-600);
+}
+
+/* ---------- 게시물 등록 카드 ---------- */
+
+.composeGrid {
+  margin-top: 18px;
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.composeCard {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 16px;
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.composeCard:hover {
+  border-color: var(--purple-300);
+  background: var(--purple-25);
+  text-decoration: none;
+  color: inherit;
+}
+
+.composeHead {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.composeBadge {
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 3px 8px;
+  border-radius: var(--radius-sm);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.composeBadgeDeep {
+  background: var(--purple-600);
+  color: #fff;
+}
+
+.composeMeta {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.composeTitle {
+  margin-top: 11px;
+  font-size: 13.5px;
+  font-weight: 600;
+}
+
+.composeDesc {
+  margin-top: 6px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--gray-600);
+}
+
+/* ---------- 표 ---------- */
+
+.tableCard {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.tableTitle {
+  padding: 18px 22px;
+  border-bottom: 1px solid var(--gray-200);
+  font: 700 15px/1.3 var(--font-sans);
+}
+
+.tableHead,
+.tableRow {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 130px 110px 110px 90px;
+  align-items: center;
+}
+
+.tableHead {
+  padding: 10px 22px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--gray-500);
+}
+
+.tableRow {
+  padding: 13px 22px;
+  border-bottom: 1px solid var(--gray-100);
+  font-size: 13px;
+  text-decoration: none;
+  color: inherit;
+}
+
+.tableRow:hover {
+  background: var(--gray-25);
+  text-decoration: none;
+  color: inherit;
+}
+
+.cellTitle {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-weight: 500;
+}
+
+.cellMuted {
+  color: var(--gray-600);
+  font-size: 12.5px;
+}
+
+.cellMono {
+  color: var(--gray-500);
+  font-size: 12px;
+  font-family: var(--font-mono);
+}
+
+.statusPill {
+  font-size: 10.5px;
+  font-weight: 600;
+  padding: 3px 9px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
+.tableEmpty {
+  padding: 40px 22px;
+  text-align: center;
+  font-size: 13px;
+  color: var(--gray-500);
+}
+
+.errorBox {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--red-50);
+  border: 1px solid var(--red-200);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--red-700);
+}

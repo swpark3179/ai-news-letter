@@ -1,0 +1,295 @@
+/* 모임 아카이브 — 디자인 원본 576~657행 (isMeetings) */
+
+.wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 28px 28px 72px;
+}
+
+.paper {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  box-shadow: var(--shadow-sm);
+  padding: 32px 40px 44px;
+}
+
+.back {
+  font-size: 12px;
+  color: var(--gray-500);
+  margin-bottom: 14px;
+  display: inline-block;
+  text-decoration: none;
+}
+
+.head {
+  display: flex;
+  align-items: flex-end;
+  border-bottom: 3px solid var(--gray-900);
+  padding-bottom: 14px;
+  flex-wrap: wrap;
+  gap: 16px;
+}
+
+.title {
+  font: 900 40px/1 var(--font-sans);
+  letter-spacing: -1.6px;
+}
+
+.note {
+  margin-top: 9px;
+  font-size: 13.5px;
+  color: var(--gray-600);
+}
+
+.nextWrap {
+  margin-left: auto;
+  text-align: right;
+}
+
+.nextLabel {
+  font-size: 11px;
+  color: var(--gray-500);
+  letter-spacing: 1px;
+  text-transform: uppercase;
+  font-weight: 700;
+}
+
+.nextValue {
+  margin-top: 6px;
+  font-size: 14px;
+  font-weight: 600;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 290px;
+  gap: 40px;
+  margin-top: 26px;
+}
+
+.list {
+  display: flex;
+  flex-direction: column;
+}
+
+.meeting {
+  display: grid;
+  grid-template-columns: 132px minmax(0, 1fr);
+  gap: 26px;
+  padding: 24px 0;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.week {
+  font: 800 17px/1.2 var(--font-sans);
+  letter-spacing: -0.5px;
+}
+
+.date {
+  margin-top: 7px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.room {
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.people {
+  margin-top: 10px;
+  display: flex;
+}
+
+.person {
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  border: 2px solid #fff;
+  margin-right: -7px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.topicsLabel {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.topics {
+  margin-top: 9px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+
+.topic {
+  display: flex;
+  gap: 9px;
+  align-items: baseline;
+}
+
+.topicDot {
+  width: 4px;
+  height: 4px;
+  border-radius: 50%;
+  background: var(--purple-400);
+  flex-shrink: 0;
+}
+
+.topicText {
+  font-size: 13.5px;
+  color: var(--gray-700);
+}
+
+.talkBox {
+  margin-top: 16px;
+  display: grid;
+  grid-template-columns: 168px minmax(0, 1fr);
+  gap: 16px;
+  padding: 14px;
+  background: var(--gray-25);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+}
+
+.talkPhoto {
+  position: relative;
+  width: 100%;
+  height: 104px;
+  background: var(--gray-100);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.talkBadgeRow {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  flex-wrap: wrap;
+}
+
+.talkBadge {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: #fff;
+  background: var(--purple-600);
+  padding: 2px 7px;
+  border-radius: var(--radius-sm);
+}
+
+.talkPresenter {
+  font-size: 11.5px;
+  color: var(--gray-600);
+}
+
+.talkTitle {
+  margin-top: 8px;
+  font: 700 16px/1.35 var(--font-sans);
+  letter-spacing: -0.5px;
+  text-wrap: pretty;
+  color: var(--gray-900);
+  text-decoration: none;
+  display: block;
+}
+
+.talkTitle:hover {
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+.talkMeta {
+  margin-top: 9px;
+  display: flex;
+  gap: 14px;
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+.rotationCard {
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 18px;
+}
+
+.rotationTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.rotationList {
+  margin-top: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.rotationRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px;
+  border-radius: var(--radius-lg);
+  background: transparent;
+  border: 1px solid transparent;
+}
+
+.rotationRowNext {
+  background: var(--purple-50);
+  border-color: var(--purple-200);
+}
+
+.rotationAvatar {
+  width: 30px;
+  height: 30px;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.rotationName {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.rotationPeriod {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.rotationStatus {
+  margin-left: auto;
+  font-size: 10.5px;
+  font-weight: 600;
+}
+
+.rotationNote {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-200);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--gray-600);
+}
+
+.empty {
+  padding: 64px 0;
+  text-align: center;
+  color: var(--gray-500);
+  font-size: 13.5px;
+  line-height: 1.9;
+}

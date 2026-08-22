@@ -1,0 +1,59 @@
+name: 긱뉴스 동기화
+
+# 긱뉴스는 제목·요약을 원문 그대로 저장하므로 LLM 을 쓰지 않는다.
+# API 키가 필요 없고 비용도 들지 않는다.
+
+on:
+  schedule:
+    # 22:00 UTC = 07:00 KST
+    # GitHub 무료 러너의 schedule 은 수 분~수십 분 지연되거나 건너뛸 수 있다.
+    - cron: "0 22 * * *"
+  workflow_dispatch:
+    inputs:
+      days:
+        description: "며칠 전까지 수집할지"
+        required: false
+        default: "3"
+      dry_run:
+        description: "저장하지 않고 파싱 결과만 확인"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: sync-geeknews
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+
+jobs:
+  sync:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GEEK_LOOKBACK_DAYS: ${{ github.event.inputs.days || '3' }}
+      GEEK_MAX_PAGES: "8"
+      TZ: Asia/Seoul
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 긱뉴스 수집
+        run: |
+          if [ "${{ github.event.inputs.dry_run }}" = "true" ]; then
+            npm run sync:geeknews -- --dry-run
+          else
+            npm run sync:geeknews
+          fi

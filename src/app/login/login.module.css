@@ -1,0 +1,463 @@
+/* 디자인 원본 30~129행 (pcGate) */
+
+.page {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 56px 28px;
+  box-sizing: border-box;
+  background: var(--bg-canvas);
+}
+
+.brand {
+  display: flex;
+  align-items: baseline;
+  gap: 11px;
+  margin-bottom: 26px;
+}
+
+.brandAi {
+  font: 800 30px/1 var(--font-display);
+  letter-spacing: -1.6px;
+  color: var(--gray-900);
+}
+
+.brandKo {
+  font: 900 28px/1 var(--font-sans);
+  letter-spacing: -1.5px;
+}
+
+.brandOrg {
+  align-self: center;
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+.card {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-sm);
+  box-sizing: border-box;
+  max-width: 100%;
+}
+
+.cardRunning {
+  width: 520px;
+  padding: 36px 40px 28px;
+}
+
+.cardFailed {
+  width: 560px;
+  padding: 32px 40px 28px;
+}
+
+.cardManual {
+  width: 440px;
+  padding: 32px 36px 28px;
+}
+
+/* ---------- 진행 중 ---------- */
+
+.runningHead {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+}
+
+.spinner {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 3px solid var(--purple-100);
+  border-top-color: var(--purple-600);
+  animation: sso-spin 900ms linear infinite;
+}
+
+.runningTitle {
+  font: 700 19px/1.35 var(--font-sans);
+  letter-spacing: -0.6px;
+}
+
+.runningDesc {
+  margin-top: 5px;
+  font-size: 13px;
+  color: var(--gray-600);
+}
+
+.steps {
+  margin-top: 26px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.step {
+  display: flex;
+  align-items: center;
+  gap: 11px;
+}
+
+.stepDot {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  border: 1.5px solid var(--gray-300);
+  background: #fff;
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+}
+
+.stepDotDone {
+  border-color: var(--purple-600);
+  background: var(--purple-600);
+}
+
+.stepDotActive {
+  border-color: var(--purple-600);
+  background: var(--purple-100);
+  animation: sso-pulse 1.2s ease-in-out infinite;
+}
+
+.stepLabel {
+  font-size: 13.5px;
+  font-weight: 500;
+  color: var(--gray-400);
+}
+
+.stepLabelDone {
+  color: var(--gray-900);
+}
+
+.stepLabelActive {
+  color: var(--purple-700);
+}
+
+.stepNote {
+  margin-left: auto;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.runningFoot {
+  margin-top: 24px;
+  padding-top: 18px;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.footHint {
+  font-size: 12px;
+  color: var(--gray-500);
+}
+
+/* ---------- 실패 ---------- */
+
+.failHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 13px;
+}
+
+.failMark {
+  width: 26px;
+  height: 26px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  background: var(--red-600);
+  color: #fff;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 700;
+}
+
+.failTitle {
+  font: 700 18px/1.35 var(--font-sans);
+  letter-spacing: -0.5px;
+  color: var(--red-700);
+}
+
+.failDesc {
+  margin-top: 7px;
+  font-size: 13.5px;
+  line-height: 1.65;
+  color: var(--gray-700);
+}
+
+.failCode {
+  margin-top: 8px;
+  font-family: var(--font-mono);
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.checkBox {
+  margin-top: 22px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  padding: 16px 18px;
+}
+
+.checkBoxTitle {
+  font-size: 11.5px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.checkList {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 11px;
+}
+
+.checkItem {
+  display: flex;
+  gap: 9px;
+  align-items: flex-start;
+}
+
+.checkBullet {
+  color: var(--gray-400);
+  font-size: 13px;
+  line-height: 1.6;
+}
+
+.checkItemTitle {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-900);
+}
+
+.checkItemDesc {
+  margin-top: 2px;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--gray-600);
+}
+
+.failActions {
+  margin-top: 22px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.failFoot {
+  margin-top: 14px;
+  padding-top: 14px;
+  border-top: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-size: 11.5px;
+  color: var(--gray-400);
+}
+
+/* ---------- 사번 로그인 ---------- */
+
+.manualTitle {
+  font: 700 18px/1.35 var(--font-sans);
+  letter-spacing: -0.5px;
+}
+
+.manualDesc {
+  margin-top: 6px;
+  font-size: 13px;
+  line-height: 1.6;
+  color: var(--gray-600);
+}
+
+.fields {
+  margin-top: 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 13px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+.input {
+  width: 100%;
+  height: 44px;
+  box-sizing: border-box;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 0 13px;
+  font-size: 14.5px;
+  font-family: var(--font-sans);
+  color: var(--gray-900);
+  background: #fff;
+  outline: none;
+}
+
+.input:focus {
+  border-color: var(--purple-400);
+  box-shadow: var(--ring-primary);
+}
+
+.inputPassword {
+  font-size: 15px;
+  letter-spacing: 3px;
+}
+
+.manualSubmit {
+  margin-top: 20px;
+  width: 100%;
+  height: 46px;
+  background: var(--purple-600);
+  color: #fff;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 15px;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.manualSubmit:hover:not(:disabled) {
+  background: var(--purple-700);
+}
+
+.manualSubmit:disabled {
+  background: var(--purple-300);
+  cursor: default;
+}
+
+.manualLinks {
+  margin-top: 14px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* ---------- 공통 버튼/링크 ---------- */
+
+.btnPrimary {
+  height: 44px;
+  padding: 0 20px;
+  background: var(--purple-600);
+  color: #fff;
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.btnPrimary:hover {
+  background: var(--purple-700);
+}
+
+.btnGhost {
+  height: 44px;
+  padding: 0 18px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+  font-weight: 500;
+  color: var(--gray-800);
+  cursor: pointer;
+  white-space: nowrap;
+  background: #fff;
+}
+
+.btnGhost:hover {
+  border-color: var(--purple-300);
+  background: var(--purple-25);
+}
+
+.linkPurple {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--purple-600);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.linkPurple:hover {
+  color: var(--purple-700);
+}
+
+.linkGray {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--gray-700);
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.pushRight {
+  margin-left: auto;
+}
+
+.errorText {
+  margin-top: 12px;
+  font-size: 12.5px;
+  color: var(--red-600);
+}
+
+.notice {
+  margin-top: 26px;
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--gray-400);
+  text-align: center;
+}
+
+.mockBadge {
+  margin-top: 14px;
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+  padding: 5px 11px;
+  border-radius: var(--radius-full);
+  background: var(--yellow-50);
+  border: 1px solid var(--yellow-200);
+  font-size: 11.5px;
+  color: var(--yellow-800);
+}
+
+/* 서버 오류(세션 발급 실패)일 때 원문 메시지 표시 */
+.serverErrorDetail {
+  margin: 0;
+  padding: 10px 12px;
+  background: var(--gray-900);
+  color: var(--red-300);
+  border-radius: var(--radius-md);
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+  max-height: 120px;
+  overflow: auto;
+}

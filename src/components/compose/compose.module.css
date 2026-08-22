@@ -1,0 +1,765 @@
+/* 글 작성 — 디자인 원본 790~954행 (isCompose) */
+
+.head {
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  margin-bottom: 18px;
+  flex-wrap: wrap;
+}
+
+.back {
+  font-size: 12px;
+  color: var(--gray-500);
+  white-space: nowrap;
+  text-decoration: none;
+}
+
+.title {
+  font: 800 26px/1.2 var(--font-sans);
+  letter-spacing: -1px;
+}
+
+.sub {
+  margin-top: 5px;
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+
+.headActions {
+  margin-left: auto;
+  display: flex;
+  gap: 10px;
+  flex-shrink: 0;
+}
+
+.saveBtn {
+  padding: 10px 16px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  white-space: nowrap;
+}
+
+.saveBtn:hover:not(:disabled) {
+  background: var(--gray-50);
+}
+
+.publishBtn {
+  padding: 10px 20px;
+  background: var(--purple-600);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-size: 13.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.publishBtn:hover:not(:disabled) {
+  background: var(--purple-700);
+}
+
+.saveBtn:disabled,
+.publishBtn:disabled {
+  opacity: 0.55;
+  cursor: default;
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 330px;
+  gap: 22px;
+  align-items: start;
+}
+
+.editor {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.sectionBar {
+  padding: 16px 22px;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sectionLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.sectionChip {
+  display: flex;
+  align-items: baseline;
+  gap: 7px;
+  padding: 8px 13px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.sectionChipOn {
+  border-color: var(--purple-600);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.sectionChipNote {
+  font-size: 10.5px;
+  opacity: 0.7;
+}
+
+.sectionHint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.metaBlock {
+  padding: 20px 22px;
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.titleInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  border-bottom: 1px solid var(--gray-200);
+  padding: 6px 0 10px;
+  font: 800 26px/1.3 var(--font-sans);
+  letter-spacing: -1px;
+  color: var(--gray-900);
+  outline: none;
+  background: transparent;
+}
+
+.deckInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 10px 12px;
+  font: 400 14px/1.6 var(--font-sans);
+  color: var(--gray-700);
+  outline: none;
+  resize: vertical;
+}
+
+.twoCol {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.fieldLabel {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  margin-bottom: 6px;
+}
+
+.select,
+.textInput {
+  width: 100%;
+  box-sizing: border-box;
+  height: 40px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 0 11px;
+  font-size: 13.5px;
+  font-family: var(--font-sans);
+  color: var(--gray-900);
+  background: #fff;
+  outline: none;
+}
+
+/* ---------- 발표 정보 (심층 분석 전용) ---------- */
+
+.talkBlock {
+  padding: 20px 22px;
+  border-bottom: 1px solid var(--gray-200);
+  background: var(--purple-25);
+}
+
+.talkTitle {
+  font-size: 12px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  color: var(--purple-700);
+  text-transform: uppercase;
+}
+
+.talkGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 12px;
+}
+
+.uploadGrid {
+  margin-top: 12px;
+  display: grid;
+  grid-template-columns: 220px minmax(0, 1fr);
+  gap: 14px;
+  align-items: stretch;
+}
+
+.photoBox {
+  position: relative;
+  height: 128px;
+  background: var(--gray-100);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.dropZone {
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  justify-content: center;
+  background: #fff;
+}
+
+.fileRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.pdfIcon {
+  width: 32px;
+  height: 40px;
+  background: var(--purple-50);
+  border: 1px solid var(--purple-200);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 9px;
+  font-weight: 700;
+  color: var(--purple-700);
+  flex-shrink: 0;
+}
+
+.fileName {
+  font-size: 12.5px;
+  font-weight: 500;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.fileMeta {
+  font-size: 11.5px;
+  color: var(--gray-600);
+}
+
+.uploadBtn {
+  margin-top: 12px;
+  align-self: flex-start;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 9px 15px;
+  background: var(--purple-600);
+  color: #fff;
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 500;
+  white-space: nowrap;
+}
+
+.uploadBtn:hover:not(:disabled) {
+  background: var(--purple-700);
+}
+
+.uploadBtn:disabled {
+  background: var(--purple-300);
+  cursor: default;
+}
+
+.hiddenInput {
+  display: none;
+}
+
+/* ---------- 블록 편집 ---------- */
+
+.blockBar {
+  padding: 12px 22px;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  position: sticky;
+  top: 60px;
+  background: var(--gray-50);
+  z-index: 5;
+  flex-wrap: wrap;
+}
+
+.blockBarLabel {
+  font-size: 11.5px;
+  font-weight: 600;
+  color: var(--gray-600);
+  white-space: nowrap;
+}
+
+.blockTool {
+  padding: 6px 12px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  border-radius: var(--radius-full);
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.blockTool:hover {
+  border-color: var(--purple-300);
+  color: var(--purple-700);
+}
+
+.blockBarHint {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.blockList {
+  padding: 16px 22px 24px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.block {
+  display: grid;
+  grid-template-columns: 64px minmax(0, 1fr) 84px;
+  gap: 12px;
+  align-items: start;
+  padding: 10px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+}
+
+.blockBadge {
+  font-size: 10.5px;
+  font-weight: 700;
+  padding: 4px 8px;
+  border-radius: var(--radius-sm);
+  text-align: center;
+  white-space: nowrap;
+}
+
+.blockInput {
+  width: 100%;
+  box-sizing: border-box;
+  border: none;
+  padding: 2px 0;
+  font: 400 14px/1.75 var(--font-sans);
+  color: var(--gray-800);
+  outline: none;
+  resize: vertical;
+  background: transparent;
+}
+
+.blockActions {
+  display: flex;
+  gap: 4px;
+  justify-content: flex-end;
+}
+
+.iconSm {
+  width: 24px;
+  height: 24px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-sm);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  color: var(--gray-600);
+}
+
+.iconSm:hover {
+  background: var(--gray-50);
+}
+
+.iconDel {
+  color: var(--red-600);
+}
+
+.iconDel:hover {
+  background: var(--red-50);
+}
+
+/* ---------- 원문 소스 ---------- */
+
+.sourceBlock {
+  padding: 18px 22px;
+  border-top: 1px solid var(--gray-200);
+  background: var(--gray-25);
+}
+
+.sourceHead {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.sourceTitle {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--gray-700);
+}
+
+.sourceHint {
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.addSourceBtn {
+  margin-left: auto;
+  padding: 6px 12px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  border-radius: var(--radius-md);
+  font-size: 12px;
+  white-space: nowrap;
+}
+
+.addSourceBtn:hover {
+  background: var(--gray-50);
+}
+
+.sourceList {
+  margin-top: 11px;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.sourceRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.sourceKind {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 0.6px;
+  padding: 5px 8px;
+  border-radius: var(--radius-sm);
+  white-space: nowrap;
+  flex-shrink: 0;
+}
+
+.sourceUrl {
+  flex: 1;
+  min-width: 0;
+  height: 36px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  padding: 0 11px;
+  font-size: 12.5px;
+  font-family: var(--font-mono);
+  outline: none;
+}
+
+.sourceDel {
+  width: 28px;
+  height: 28px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.sourceDel:hover {
+  color: var(--red-600);
+}
+
+/* ---------- 사이드: 미리보기 + 체크리스트 ---------- */
+
+.aside {
+  position: sticky;
+  top: 84px;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.previewCard {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-xs);
+}
+
+.previewHead {
+  padding: 11px 16px;
+  border-bottom: 1px solid var(--gray-200);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.previewTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.previewNote {
+  margin-left: auto;
+  font-size: 11px;
+  color: var(--gray-400);
+}
+
+.previewBody {
+  padding: 18px 16px;
+  max-height: 420px;
+  overflow: auto;
+}
+
+.pvKicker {
+  font-size: 9.5px;
+  font-weight: 700;
+  letter-spacing: 1.2px;
+  color: var(--purple-600);
+  text-transform: uppercase;
+}
+
+.pvTitle {
+  margin-top: 8px;
+  font: 900 20px/1.28 var(--font-sans);
+  letter-spacing: -0.9px;
+  text-wrap: pretty;
+}
+
+.pvDeck {
+  margin-top: 8px;
+  font: 400 12.5px/1.65 var(--font-sans);
+  color: var(--gray-600);
+  text-wrap: pretty;
+}
+
+.pvByline {
+  margin-top: 11px;
+  padding-top: 9px;
+  border-top: 1px solid var(--gray-900);
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+.pvBlocks {
+  margin-top: 12px;
+}
+
+.pvHead {
+  margin: 16px 0 7px;
+  font: 800 14px/1.4 var(--font-sans);
+  letter-spacing: -0.4px;
+}
+
+.pvQuote {
+  margin: 13px 0;
+  padding: 10px 12px;
+  background: var(--purple-50);
+  border-left: 3px solid var(--purple-600);
+  font: 500 12.5px/1.6 var(--font-sans);
+  color: var(--purple-900);
+}
+
+.pvText {
+  margin: 0 0 10px;
+  font: 400 12.5px/1.8 var(--font-sans);
+  color: var(--gray-800);
+  text-wrap: pretty;
+}
+
+.pvEmpty {
+  font-size: 12px;
+  color: var(--gray-400);
+  padding: 20px 0;
+  text-align: center;
+}
+
+.checklistCard {
+  background: #fff;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  padding: 16px;
+}
+
+.checklistTitle {
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: 1px;
+  color: var(--gray-500);
+  text-transform: uppercase;
+}
+
+.checklist {
+  margin-top: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+}
+
+.checkRow {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+}
+
+.checkMark {
+  width: 18px;
+  height: 18px;
+  flex-shrink: 0;
+  border-radius: var(--radius-full);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 10px;
+  font-weight: 700;
+}
+
+.checkText {
+  font-size: 12.5px;
+  color: var(--gray-700);
+}
+
+.checklistNote {
+  margin-top: 14px;
+  padding-top: 12px;
+  border-top: 1px solid var(--gray-200);
+  font-size: 11.5px;
+  line-height: 1.7;
+  color: var(--gray-600);
+}
+
+.errorBox {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--red-50);
+  border: 1px solid var(--red-200);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--red-700);
+}
+
+.okBox {
+  margin-top: 12px;
+  padding: 10px 12px;
+  background: var(--green-50);
+  border: 1px solid var(--green-200);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--green-800);
+}
+
+/* --------------------------------------------------------------------------
+   사용자 화면 글쓰기에서 추가된 것 — 초기화 / 삭제 / 자동 저장 표시
+   -------------------------------------------------------------------------- */
+
+.ghostBtn {
+  padding: 9px 14px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.ghostBtn:hover:not(:disabled) {
+  border-color: var(--gray-400);
+  background: var(--gray-50);
+}
+
+.dangerBtn {
+  padding: 9px 14px;
+  border: 1px solid var(--red-200);
+  background: #fff;
+  color: var(--red-700);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 600;
+  cursor: pointer;
+  white-space: nowrap;
+}
+
+.dangerBtn:hover:not(:disabled) {
+  border-color: var(--red-400);
+  background: var(--red-50);
+}
+
+.ghostBtn:disabled,
+.dangerBtn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+/** 헤더의 "n초 전 자동 저장됨" 표시 */
+.autosaveNote {
+  font-size: 11.5px;
+  color: var(--gray-500);
+  font-family: var(--font-mono);
+  white-space: nowrap;
+}
+
+.autosaveNoteBusy {
+  color: var(--purple-600);
+}
+
+/** 임시저장 이어쓰기 안내 줄 */
+.resumeNote {
+  margin-bottom: 14px;
+  padding: 10px 14px;
+  background: var(--yellow-50);
+  border: 1px solid var(--yellow-200);
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  color: var(--yellow-800);
+}
+
+/**
+ * 사용자 화면(/sections/.../write, /articles/.../edit)용 바깥 폭 제한.
+ * 관리자 화면에서는 admin.module.css 의 .shell 이 이 역할을 했다.
+ */
+.wrap {
+  max-width: 1280px;
+  margin: 0 auto;
+  padding: 24px 28px 72px;
+}
