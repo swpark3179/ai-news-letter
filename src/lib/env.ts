@@ -102,9 +102,24 @@ export const ssoPublicEnv = {
 
 // --- LLM (서버/스크립트 전용) --------------------------------------------
 
+/**
+ * 어느 LLM 으로 트렌드 브리핑을 쓸지 정한다.
+ *
+ * LLM_PROVIDER 를 지정하면 그 값을 따르고, 비어 있으면 키가 등록된 쪽을 쓴다.
+ * (정기 실행은 워크플로가 LLM_PROVIDER=openai 를 명시한다. 관리자 화면의 수동
+ *  실행처럼 값이 없는 경로에서 키 없는 제공자를 골라 실패하는 것을 막는다.)
+ */
+export function resolveLlmProvider(): "gemini" | "openai" {
+  const raw = process.env.LLM_PROVIDER?.trim().toLowerCase();
+  if (raw === "openai" || raw === "gemini") return raw;
+  if (process.env.OPENAI_API_KEY?.trim()) return "openai";
+  if (process.env.GEMINI_API_KEY?.trim()) return "gemini";
+  return "openai";
+}
+
 export const llmEnv = {
   get provider(): "gemini" | "openai" {
-    return process.env.LLM_PROVIDER === "openai" ? "openai" : "gemini";
+    return resolveLlmProvider();
   },
   get geminiApiKey() {
     return requireServerEnv("GEMINI_API_KEY");
@@ -120,12 +135,12 @@ export const llmEnv = {
   },
   /**
    * Gemini 무료 티어는 gemini-2.5-flash 기준 10 RPM 이다.
-   * 호출 사이에 이 간격을 둬서 429 를 피한다.
+   * 호출 사이에 이 간격을 둬서 429 를 피한다. 유료 OpenAI 는 여유가 커서 짧다.
    */
   get minCallIntervalMs() {
     const raw = Number(process.env.LLM_MIN_CALL_INTERVAL_MS);
     if (Number.isFinite(raw) && raw >= 0) return raw;
-    return process.env.LLM_PROVIDER === "openai" ? 500 : 7000;
+    return resolveLlmProvider() === "openai" ? 500 : 7000;
   },
 };
 

@@ -29,7 +29,7 @@ AI 뉴스레터가 쓰는 테이블 · 인덱스 · RLS · Storage 의 **참고 
 
 ### 방법 A — 대시보드 SQL Editor (가장 간단, 권장)
 
-**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 8개 마이그레이션이 순서대로 합쳐져
+**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 9개 마이그레이션이 순서대로 합쳐져
 있습니다. 대시보드 → **SQL Editor** → New query 에 **전체를 붙여넣고 한 번 Run**
 하면 끝입니다.
 
@@ -49,6 +49,7 @@ supabase/migrations/0005_ops.sql          sync_runs, attachments
 supabase/migrations/0006_indexes.sql      인덱스 + updated_at 트리거
 supabase/migrations/0007_rls.sql          RLS 활성화
 supabase/migrations/0008_seed.sql         유닛원·로테이션·발행설정 시드
+supabase/migrations/0009_scraps.sql       보관함 조회 인덱스
 ```
 
 모든 파일이 `create table if not exists` / `on conflict do nothing` 이라
@@ -152,7 +153,7 @@ generated column 입니다. URL 을 그대로 주소에 넣을 수 없어서 라
 | `members` | 유닛원·구독자. 사내 SSO 사번(`emp_no`)이 자연 키 |
 | `meetings` / `meeting_attendees` | 주간 모임 아카이브 |
 | `rotations` | 발표 순번(`deep`) · 주간 당번(`weekly`) |
-| `scraps` | 구독자 스크랩 |
+| `scraps` | 보관함 — 사용자가 나중에 다시 읽으려고 담아 둔 게시물 (본인만 조회, 관리자는 집계만) |
 | `sync_runs` | 동기화 실행 로그 — 관리자 콘솔의 `pipeline.log` 원천 |
 | `attachments` | 발표 자료 분할 암호화 업로드 이력 |
 | `app_settings` | 발행 호수·발행처 등 런타임 설정 |
@@ -227,7 +228,7 @@ update public.members
 | ① | 테이블 | 13개 |
 | ② | RLS | 13개 모두 `rowsecurity = true` |
 | ③ | 정책 | **0건** (service_role 전용 구성이므로 정상) |
-| ④ | 인덱스 | 14개 내외 |
+| ④ | 인덱스 | 16개 내외 |
 | ⑤ | `trend_items.public_id` | `is_generated = ALWAYS` |
 | ⑥ | 유닛원 시드 | 5명 (유닛원 4 + 구독자 1) |
 | ⑦ | 발행 설정 | 5건 |
@@ -284,6 +285,22 @@ update trend_items set status = 'hidden' where source_url = '<url>';
 -- 조각이 남은 실패한 업로드 정리
 select id, file_name, status, received_chunks, chunk_count, error
   from attachments where status <> 'stored' order by created_at desc;
+
+-- 많이 보관된 게시물 (관리자 화면 /admin/scraps 와 같은 집계)
+select s.target_type,
+       s.target_key,
+       count(*)          as saves,
+       max(s.created_at) as last_saved_at
+  from scraps s
+ group by 1, 2
+ order by saves desc, last_saved_at desc
+ limit 20;
+
+-- 보관 기능을 쓰는 사람 수 · 종류별 건수
+select count(distinct member_id) as savers,
+       count(*) filter (where target_type = 'geek')  as geek,
+       count(*) filter (where target_type = 'trend') as trend
+  from scraps;
 ```
 
 > **주의** — `trend_items` 나 `geek_news` 에서 행을 **삭제**하면 PK 가 사라져

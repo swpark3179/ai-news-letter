@@ -18,6 +18,8 @@ import {
   getTrendItems,
 } from "@/lib/data/content";
 import { getSessionUser } from "@/lib/auth/current-user";
+import { getSavedKeys } from "@/lib/data/scraps";
+import ScrapButton from "@/components/scrap/ScrapButton";
 import type { SessionUser } from "@/lib/auth/session";
 import type { SectionKey, TrendSource, WritableSection } from "@/types/db";
 import s from "@/components/section/section.module.css";
@@ -53,7 +55,8 @@ export default async function SectionPage({ params, searchParams }: Props) {
   // 위클리 리뷰 · 심층 분석은 유닛원이 직접 쓰는 카테고리라 등록 진입점이 붙는다.
   const writable: WritableSection | null =
     section === "review" || section === "deep" ? section : null;
-  const user = writable ? await getSessionUser() : null;
+  // 자동 수집 두 카테고리는 행마다 보관 버튼이 붙으므로 어느 화면이든 세션을 읽는다.
+  const user = await getSessionUser();
   const mine = writable !== null && filter === "mine";
 
   // 이어쓸 임시저장 — "내 글" 목록에는 이미 보이므로 그때는 배너를 숨긴다.
@@ -120,8 +123,8 @@ export default async function SectionPage({ params, searchParams }: Props) {
             </div>
           )}
 
-          {section === "geek" && <GeekList />}
-          {section === "trend" && <TrendList filter={filter} />}
+          {section === "geek" && <GeekList viewer={user} />}
+          {section === "trend" && <TrendList filter={filter} viewer={user} />}
           {writable && (
             <ArticleList
               section={writable}
@@ -139,8 +142,11 @@ export default async function SectionPage({ params, searchParams }: Props) {
 /* 긱뉴스 — 제목을 누르면 긱뉴스 원문으로 바로 이동 (상세 페이지 없음)   */
 /* ------------------------------------------------------------------ */
 
-async function GeekList() {
+async function GeekList({ viewer }: { viewer: SessionUser | null }) {
   const rows = await getGeekNews(60);
+  const saved = viewer
+    ? await getSavedKeys(viewer.id, "geek", rows.map((g) => g.url))
+    : new Set<string>();
 
   if (rows.length === 0) {
     return (
@@ -154,20 +160,21 @@ async function GeekList() {
   return (
     <>
       {rows.map((g) => (
-        <a
-          key={g.url}
-          href={g.url}
-          target="_blank"
-          rel="noreferrer noopener"
-          className={s.row}
-        >
+        <div key={g.url} className={s.row}>
           <div>
             <div className={s.rowDate}>{shortDot(g.published_at)}</div>
             <div className={s.rowNum}>NO.{issueNum(g.published_at)}</div>
           </div>
           <div>
             <div className={s.rowKicker}>긱뉴스</div>
-            <div className={s.rowTitle}>{g.title}</div>
+            <a
+              href={g.url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className={s.rowTitleLink}
+            >
+              <span className={s.rowTitle}>{g.title}</span>
+            </a>
             <div className={s.rowDeck}>{g.summary}</div>
             <div className={s.rowTags}>
               {g.source_domain && <span className={s.tag}>{g.source_domain}</span>}
@@ -184,8 +191,15 @@ async function GeekList() {
             <div className={s.rowMeta}>
               {g.points} points · 댓글 {g.comment_count}
             </div>
+            {viewer && (
+              <ScrapButton
+                targetType="geek"
+                targetKey={g.url}
+                initialSaved={saved.has(g.url)}
+              />
+            )}
           </div>
-        </a>
+        </div>
       ))}
     </>
   );
@@ -195,13 +209,22 @@ async function GeekList() {
 /* 트렌드 브리핑                                                        */
 /* ------------------------------------------------------------------ */
 
-async function TrendList({ filter }: { filter: string }) {
+async function TrendList({
+  filter,
+  viewer,
+}: {
+  filter: string;
+  viewer: SessionUser | null;
+}) {
   const source =
     filter !== "all" && ["github", "hn", "arxiv", "geeknews"].includes(filter)
       ? (filter as TrendSource)
       : undefined;
 
   const rows = await getTrendItems({ source, limit: 80 });
+  const saved = viewer
+    ? await getSavedKeys(viewer.id, "trend", rows.map((t) => t.source_url))
+    : new Set<string>();
 
   if (rows.length === 0) {
     return (
@@ -219,7 +242,7 @@ async function TrendList({ filter }: { filter: string }) {
       {rows.map((t) => {
         const style = sourceStyleOf(t.source);
         return (
-          <Link key={t.source_url} href={routes.trend(t)} className={s.row}>
+          <div key={t.source_url} className={s.row}>
             <div>
               <div className={s.rowDate}>{shortDot(t.collected_date)}</div>
               <div className={s.rowNum}>NO.{issueNum(t.collected_date)}</div>
@@ -229,7 +252,9 @@ async function TrendList({ filter }: { filter: string }) {
                 트렌드 브리핑 · {SRC[TREND_SOURCE_TO_KIND[t.source]].label}
                 {t.source_variant ? ` (${t.source_variant})` : ""}
               </div>
-              <div className={s.rowTitle}>{t.title}</div>
+              <Link href={routes.trend(t)} className={s.rowTitleLink}>
+                <span className={s.rowTitle}>{t.title}</span>
+              </Link>
               {t.deck && <div className={s.rowDeck}>{t.deck}</div>}
               <div className={s.rowTags}>
                 {t.tags.map((tag) => (
@@ -249,8 +274,15 @@ async function TrendList({ filter }: { filter: string }) {
               <div className={s.rowMeta}>
                 {t.llm_provider ? `${t.llm_provider} 요약` : "자동 요약"}
               </div>
+              {viewer && (
+                <ScrapButton
+                  targetType="trend"
+                  targetKey={t.source_url}
+                  initialSaved={saved.has(t.source_url)}
+                />
+              )}
             </div>
-          </Link>
+          </div>
         );
       })}
     </>

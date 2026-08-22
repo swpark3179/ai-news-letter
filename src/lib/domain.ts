@@ -175,6 +175,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const ADMIN_NAV: readonly NavItem[] = [
   { label: "대시보드", href: "/admin", match: "/admin" },
   { label: "수집 파이프라인", href: "/admin#pipeline", match: "/admin#pipeline" },
+  { label: "보관 통계", href: "/admin/scraps", match: "/admin/scraps" },
   { label: "업로드 이력", href: "/admin/uploads", match: "/admin/uploads" },
   { label: "유닛 멤버", href: "/admin/members", match: "/admin/members" },
 ] as const;

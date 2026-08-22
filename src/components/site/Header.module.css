@@ -114,6 +114,41 @@
   background: var(--gray-50);
 }
 
+/** 내 보관함 진입 — 로그인 사용자에게만 보인다 */
+.savedBtn {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  height: 36px;
+  padding: 0 12px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 500;
+  white-space: nowrap;
+  flex-shrink: 0;
+  text-decoration: none;
+}
+
+.savedBtn:hover {
+  background: var(--gray-50);
+  color: var(--gray-900);
+  text-decoration: none;
+}
+
+.savedBtnOn {
+  border-color: var(--purple-200);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.savedBtnOn:hover {
+  background: var(--purple-100);
+  color: var(--purple-700);
+}
+
 .adminBtn {
   display: flex;
   align-items: center;

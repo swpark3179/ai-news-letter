@@ -1,0 +1,82 @@
+/* 보관함 담기 버튼 — 목록 행(pill)과 기사 바이라인(byline) 두 모양 */
+
+.wrap {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+/** 바이라인 줄의 오른쪽 끝 (디자인 원본의 스크랩 버튼 자리) */
+.bylineWrap {
+  margin-left: auto;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  justify-content: flex-end;
+}
+
+.pill {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  padding: 5px 11px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-600);
+  border-radius: var(--radius-full);
+  font: 600 11.5px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.pill:hover {
+  border-color: var(--purple-300);
+  color: var(--purple-700);
+}
+
+.byline {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 7px 13px;
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+  border-radius: var(--radius-md);
+  font: 500 12.5px/1 var(--font-sans);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.byline:hover {
+  border-color: var(--purple-300);
+  color: var(--purple-700);
+}
+
+/* 담겨 있는 상태 */
+.on {
+  border-color: var(--purple-600);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+.on:hover {
+  border-color: var(--purple-600);
+  color: var(--purple-700);
+}
+
+.busy {
+  opacity: 0.6;
+  cursor: default;
+}
+
+.error {
+  font-size: 10.5px;
+  line-height: 1.5;
+  color: var(--red-700);
+  text-align: right;
+  max-width: 180px;
+}

@@ -1,15 +1,19 @@
 import { createAdminClient } from "@/lib/supabase/admin-client";
-import { syncTrend } from "@/lib/sync/trend";
+import { DEFAULT_TREND_SOURCES, syncTrend } from "@/lib/sync/trend";
 import type { TrendSource } from "@/types/db";
 import { fail, parseArgs, requireSupabaseEnv } from "./cli";
 
 /**
  * 트렌드 브리핑 동기화 CLI.
  *
+ *   npm run sync:trend                           기본 출처(github,hn,arxiv) 전부
  *   npm run sync:trend -- --dry-run              수집 대상만 확인 (LLM 호출 없음)
  *   npm run sync:trend -- --limit=5              신규 5건만 기사화
  *   npm run sync:trend -- --provider=openai      제공자 지정
  *   npm run sync:trend -- --only=github,arxiv    특정 출처만
+ *
+ * 긱뉴스는 '긱뉴스 동기화'(npm run sync:geeknews)가 담당하므로 기본 출처에서
+ * 빠져 있다. 굳이 기사화하려면 --only=geeknews 로 명시한다.
  */
 const VALID_SOURCES: TrendSource[] = ["github", "hn", "arxiv", "geeknews"];
 
@@ -22,8 +26,10 @@ async function main() {
 
   --dry-run              LLM 호출 없이 수집 대상만 출력
   --limit=N              이번 실행에서 기사화할 최대 신규 건수 (기본 TREND_MAX_NEW 또는 30)
+                         상한은 출처별로 번갈아 나눠 담는다
   --provider=gemini|openai   LLM_PROVIDER 환경변수를 덮어씀
   --only=github,hn,arxiv,geeknews   특정 출처만 수집
+                         기본값 ${DEFAULT_TREND_SOURCES.join(",")} — 긱뉴스는 별도 동기화가 담당
 `);
     return;
   }

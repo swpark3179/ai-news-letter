@@ -1,13 +1,21 @@
 name: 트렌드 브리핑 동기화 (Gemini)
 
-# 일상 운용용. Google AI Studio 무료 티어 API 키를 쓴다.
-# 같은 스크립트를 OpenAI 로 돌리려면 sync-trend-openai.yml 을 수동 실행한다.
+# 수동 실행 전용. GEMINI_API_KEY 를 아직 등록하지 않았기 때문에 정기 실행은
+# sync-trend-openai.yml 이 맡는다 (07:10 KST).
+#
+# 쓰는 상황
+#   - Gemini 키를 발급해 붙인 뒤 품질·비용을 비교해 볼 때
+#   - OpenAI 크레딧이 떨어졌을 때 임시 대체
+#
+# 자동 실행을 이쪽으로 되돌리려면 아래 schedule 주석을 풀고
+# sync-trend-openai.yml 의 schedule 을 지운다. 두 워크플로를 동시에 자동
+# 실행하면 같은 URL 을 두고 경쟁하게 되고(먼저 저장한 쪽이 이김) 비용도
+# 이중으로 나간다.
 
 on:
-  schedule:
-    # 22:10 UTC = 07:10 KST — 긱뉴스 동기화가 끝난 뒤에 돈다
-    # (트렌드 브리핑이 긱뉴스 항목도 재료로 쓰기 때문)
-    - cron: "10 22 * * *"
+  # schedule:
+  #   # 22:10 UTC = 07:10 KST
+  #   - cron: "10 22 * * *"
   workflow_dispatch:
     inputs:
       limit:
@@ -15,9 +23,9 @@ on:
         required: false
         default: "30"
       only:
-        description: "특정 출처만 (github,hn,arxiv,geeknews 쉼표 구분)"
+        description: "수집할 출처 (github,hn,arxiv 쉼표 구분 · geeknews 는 '긱뉴스 동기화' 담당)"
         required: false
-        default: ""
+        default: "github,hn,arxiv"
       dry_run:
         description: "LLM 호출 없이 수집 대상만 확인"
         type: boolean
@@ -71,6 +79,7 @@ jobs:
           fi
 
       - name: 트렌드 브리핑 수집 및 기사 생성
+        # only 를 비워 두면 스크립트 기본값(github,hn,arxiv)이 쓰인다.
         run: |
           ARGS=""
           [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"

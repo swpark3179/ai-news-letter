@@ -37,7 +37,7 @@
 
 | 항목 | 확인 |
 |---|---|
-| Supabase 프로젝트 + 마이그레이션 8개 적용 | `supabase/VERIFY.sql` 통과 |
+| Supabase 프로젝트 + 마이그레이션 9개 적용 | `supabase/VERIFY.sql` 통과 |
 | Storage 버킷 `newsletter` 생성 | Supabase → Storage |
 | `SUPABASE_URL` · `service_role` 키 확보 | Project Settings → API |
 | 로컬에서 `npm run dev` 가 뜨고 화면이 보임 | http://localhost:3000 |
@@ -66,6 +66,7 @@ Route (app)
 ┌ ƒ /                            ├ ƒ /admin              ├ ƒ /api/uploads/chunk
 ├ ○ /_not-found                  ├ ƒ /admin/compose      ├ ƒ /articles/[id]
 ├ ƒ /api/admin/pipeline/run      ├ ƒ /admin/members      ├ ƒ /login
+├ ƒ /api/scraps                  ├ ƒ /admin/scraps       ├ ƒ /me
 ...
 ƒ Proxy (Middleware)
 ```
@@ -159,10 +160,10 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 | `NEXT_PUBLIC_SSO_MODE` | `mock` | 사내 SSO 실연동 후 `real` 로 (→ 9절) |
 | `NEXT_PUBLIC_SSO_TRAY_WS_URL` | — | `real` 모드에서만 |
 | `SSO_DECODE_KEY` | — | `real` 모드에서만 |
-| `LLM_PROVIDER` | `gemini` | 관리자 화면에서 **트렌드** 수집을 돌릴 때 |
+| `LLM_PROVIDER` | `openai` | 관리자 화면에서 **트렌드** 수집을 돌릴 때. 비우면 키가 있는 쪽을 자동 선택 |
 | `GEMINI_API_KEY` | — | 같음 (https://aistudio.google.com/apikey) |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | 모델 교체 시 |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-5-mini` | `LLM_PROVIDER=openai` 로 쓸 때 |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-5-mini` | 정기 실행·관리자 실행이 쓰는 기본 제공자 |
 | `LLM_MIN_CALL_INTERVAL_MS` | gemini 7000 / openai 500 | 429 가 나면 올림 |
 | `TREND_MAX_NEW` | `30` | 관리자 버튼 1회당 신규 상한. Vercel 에서는 **5~10 권장** (→ 7.1) |
 | `HN_MIN_SCORE` | `150` | 선별 기준 점수 |
@@ -284,7 +285,7 @@ Fluid compute 기준 (2026-08 시점, Vercel 공식 문서):
 
 - `src/app/api/admin/pipeline/run/route.ts` 는 `maxDuration = 300` 입니다.
   **Hobby 에서도 그대로 동작합니다.**
-- 다만 트렌드 전체 수집(신규 30건, Gemini 무료 티어 7초 간격)은 **3~5분** 이라
+- 다만 트렌드 전체 수집(신규 30건, Gemini 무료 티어 7초 간격이면)은 **3~5분** 이라
   300초를 넘길 수 있습니다. 관리자 버튼으로는 `limit` 을 **5~10** 으로 줄여 쓰고,
   전체 수집은 GitHub Actions 에 맡기세요.
 - 한도를 넘으면 `504 FUNCTION_INVOCATION_TIMEOUT` 이고, `sync_runs` 행이
@@ -391,7 +392,7 @@ Vercel 과 GitHub Actions 는 **환경변수를 공유하지 않습니다.** 같
 3. Actions 탭에서 **긱뉴스 동기화** 를 `dry_run: true` 로 1회 → 로그 확인
 4. `dry_run` 없이 1회 → 실제 적재
 5. 배포된 사이트를 새로고침 → 1면에 기사가 채워짐
-6. **트렌드 브리핑 동기화 (Gemini)** 를 `limit: 5` 로 1회 → 품질 확인
+6. **트렌드 브리핑 동기화 (OpenAI)** 를 `limit: 5` 로 1회 → 품질 확인
 7. 이후 매일 07:00 / 07:10 KST 에 자동 실행
 
 > **Supabase 무료 플랜은 일정 기간 무활동 시 프로젝트를 일시정지합니다.**

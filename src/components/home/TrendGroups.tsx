@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ScrapButton from "@/components/scrap/ScrapButton";
 import { SRC, TREND_GROUPS, TREND_SOURCE_TO_KIND } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import type { TrendItemRow, TrendSource } from "@/types/db";
@@ -11,6 +12,10 @@ interface Props {
   totals: Record<string, number>;
   /** 오늘 수집한 원문 총 건수 */
   fetchedTotal: number;
+  /** 로그인 사용자에게만 보관 버튼을 붙인다 */
+  canSave?: boolean;
+  /** 이미 보관한 trend_items.source_url 집합 */
+  saved?: Set<string>;
 }
 
 const PER_GROUP = 3;
@@ -43,7 +48,13 @@ function groupLabel(source: TrendSource): string {
 }
 
 /** "오늘 요약된 게시물" 3열 (디자인 232~258행) */
-export default function TrendGroups({ items, totals, fetchedTotal }: Props) {
+export default function TrendGroups({
+  items,
+  totals,
+  fetchedTotal,
+  canSave = false,
+  saved,
+}: Props) {
   const summarized = items.length + 1; // 머리기사 포함
 
   return (
@@ -103,6 +114,15 @@ export default function TrendGroups({ items, totals, fetchedTotal }: Props) {
                       원문 ↗
                     </a>
                   </div>
+                  {canSave && (
+                    <div className={s.groupItemSave}>
+                      <ScrapButton
+                        targetType="trend"
+                        targetKey={item.source_url}
+                        initialSaved={saved?.has(item.source_url) ?? false}
+                      />
+                    </div>
+                  )}
                 </div>
               ))}
 

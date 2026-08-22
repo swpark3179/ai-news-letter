@@ -63,6 +63,31 @@ export default function Header({ user, guest }: Props) {
               </svg>
             </Link>
 
+            {user && (
+              <Link
+                href="/me"
+                title="내 보관함 — 나중에 다시 읽으려고 담아 둔 게시물"
+                className={`${s.savedBtn} ${
+                  isActive(pathname, "/me") ? s.savedBtnOn : ""
+                }`}
+              >
+                <svg
+                  width="14"
+                  height="14"
+                  viewBox="0 0 24 24"
+                  fill="none"
+                  stroke="currentColor"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                  aria-hidden="true"
+                >
+                  <path d="M6 3h12a1 1 0 0 1 1 1v17l-7-4.5L5 21V4a1 1 0 0 1 1-1z" />
+                </svg>
+                보관함
+              </Link>
+            )}
+
             {user?.isAdmin && (
               <Link href="/admin" className={s.adminBtn}>
                 관리자

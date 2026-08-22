@@ -38,7 +38,7 @@ https://supabase.com/dashboard 에서 프로젝트를 선택합니다.
 
 ## 2단계 — 스키마 적용
 
-8개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** (581줄)이
+9개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 이
 준비되어 있습니다.
 
 터미널에서 클립보드로 복사:
@@ -59,7 +59,7 @@ Get-Content supabase/ALL_MIGRATIONS.sql -Raw | Set-Clipboard
   geek_news  trend_items  articles             콘텐츠
   article_sources  comments                    기사 부속
   meetings  meeting_attendees  rotations       유닛 운영
-  scraps  sync_runs  attachments               스크랩 · 로그 · 업로드
+  scraps  sync_runs  attachments               보관함 · 로그 · 업로드
 
 인덱스 14개 + updated_at 자동갱신 트리거 3개
 RLS 13개 테이블 전부 활성화 (정책은 의도적으로 0건)
@@ -82,6 +82,7 @@ supabase/migrations/0005_ops.sql          sync_runs, attachments
 supabase/migrations/0006_indexes.sql      인덱스 + updated_at 트리거
 supabase/migrations/0007_rls.sql          RLS 활성화
 supabase/migrations/0008_seed.sql         유닛원·로테이션·발행설정 시드
+supabase/migrations/0009_scraps.sql       보관함 조회 인덱스
 ```
 
 > 스키마를 고칠 때는 `migrations/` 의 개별 파일을 고치고
@@ -250,9 +251,9 @@ select kind, provider, status, fetched_count, inserted_count, skipped_count, err
 ## 관련 파일
 
 ```
-supabase/ALL_MIGRATIONS.sql   8개 마이그레이션 통합본 (581줄) — 붙여넣기용
+supabase/ALL_MIGRATIONS.sql   9개 마이그레이션 통합본 — 붙여넣기용
 supabase/VERIFY.sql           적용 확인 쿼리 9종
-supabase/migrations/          개별 마이그레이션 0001~0008
+supabase/migrations/          개별 마이그레이션 0001~0009
 scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 ```
 
@@ -263,9 +264,9 @@ scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 적용 전에 정적 검증을 돌렸습니다.
 
 - 인덱스·FK·트리거·시드가 참조하는 컬럼이 모두 실제로 존재함
-- 괄호 185/185, 작은따옴표 378개(짝수), `$$` 2개(짝수) 균형
+- 괄호 141/141(주석·문자열 제외), 작은따옴표 짝수, `$$` 2개(짝수) 균형
 - RLS 13/13 테이블 적용, `create policy` 0건 (의도된 구성)
-- 실행 statement 86개
+- 실행 statement 89개 · 테이블 13개 · 인덱스 16개
 
 다만 **실제 Postgres 인스턴스에 실행해 본 것은 아닙니다**
 (작업 PC 에 psql·docker 가 없습니다).

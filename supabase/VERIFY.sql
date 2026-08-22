@@ -29,7 +29,7 @@ select schemaname, tablename, policyname
  where schemaname = 'public';
 
 
--- ④ 인덱스가 만들어졌는가 (14개 내외)
+-- ④ 인덱스가 만들어졌는가 (16개 내외 — scraps 인덱스 2개 포함)
 select tablename, indexname
   from pg_indexes
  where schemaname = 'public'
