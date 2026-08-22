@@ -18,6 +18,12 @@ export const routes = {
   meetings: "/meetings",
   admin: "/admin",
   adminUploads: "/admin/uploads",
+  adminScraps: "/admin/scraps",
+
+  /** 내 보관함 — 본인이 담아 둔 게시물만 보인다 */
+  saved(filter?: "all" | "geek" | "trend"): string {
+    return filter && filter !== "all" ? `/me?filter=${filter}` : "/me";
+  },
 
   section(key: SectionKey, filter?: string): string {
     return filter && filter !== "all"

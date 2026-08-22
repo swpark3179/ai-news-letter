@@ -23,6 +23,8 @@ export type WritableSection = "review" | "deep";
 export type SourceKind = "gh" | "hn" | "ax" | "gk";
 export type TrendSource = "github" | "hn" | "arxiv" | "geeknews";
 export type LlmProviderName = "gemini" | "openai";
+/** 보관함에 담을 수 있는 대상 종류. target_key 는 종류에 따라 UUID 또는 URL 이다. */
+export type ScrapTargetType = "article" | "trend" | "geek";
 
 // ---------------------------------------------------------------------------
 // 테이블 행
@@ -138,6 +140,14 @@ export interface CommentRow {
   role_tag: string;
   body: string;
   is_deleted: boolean;
+  created_at: string;
+}
+
+export interface ScrapRow {
+  member_id: string;
+  target_type: ScrapTargetType;
+  /** article 이면 articles.id, trend 면 trend_items.source_url, geek 이면 geek_news.url */
+  target_key: string;
   created_at: string;
 }
 

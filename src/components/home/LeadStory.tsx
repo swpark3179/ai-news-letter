@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ScrapButton from "@/components/scrap/ScrapButton";
 import { sourceStyleOf } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import type { TrendItemRow } from "@/types/db";
@@ -6,10 +7,14 @@ import s from "./home.module.css";
 
 interface Props {
   lead: TrendItemRow | null;
+  /** 로그인 사용자에게만 보관 버튼을 붙인다 */
+  canSave?: boolean;
+  /** 이미 보관한 trend_items.source_url 집합 */
+  saved?: Set<string>;
 }
 
 /** 머리기사 — 3단 조판 + 드롭캡 (디자인 205~230행) */
-export default function LeadStory({ lead }: Props) {
+export default function LeadStory({ lead, canSave = false, saved }: Props) {
   if (!lead) {
     return (
       <div className={s.emptyBlock}>
@@ -62,6 +67,13 @@ export default function LeadStory({ lead }: Props) {
           </span>
         </a>
         <span className={s.leadSourcesNote}>원문 1건 요약</span>
+        {canSave && (
+          <ScrapButton
+            targetType="trend"
+            targetKey={lead.source_url}
+            initialSaved={saved?.has(lead.source_url) ?? false}
+          />
+        )}
       </div>
 
       <div className={s.leadBody}>

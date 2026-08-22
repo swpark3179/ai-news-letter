@@ -18,6 +18,8 @@ import {
 } from "@/lib/data/content";
 import { getLastSyncRun, storageUrl } from "@/lib/data/ops";
 import { getPublishSettings } from "@/lib/data/settings";
+import { getSavedKeys } from "@/lib/data/scraps";
+import { getSessionUser } from "@/lib/auth/current-user";
 import { formatIssue, hhmm } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
@@ -27,18 +29,29 @@ const REVIEW_CARDS = 4;
 export default async function HomePage() {
   const today = new Date();
 
-  const [settings, lead, geek, deep, allReviews, duty, geekToday, lastGeekSync, lastTrendSync] =
-    await Promise.all([
-      getPublishSettings(),
-      getLeadTrendItem(),
-      getGeekNews(8),
-      getLatestDeepArticle(),
-      getArticles({ section: "review", limit: 12 }),
-      getRotations("weekly", 6),
-      countGeekNewsToday(),
-      getLastSyncRun("geeknews"),
-      getLastSyncRun("trend"),
-    ]);
+  const [
+    settings,
+    lead,
+    geek,
+    deep,
+    allReviews,
+    duty,
+    geekToday,
+    lastGeekSync,
+    lastTrendSync,
+    user,
+  ] = await Promise.all([
+    getPublishSettings(),
+    getLeadTrendItem(),
+    getGeekNews(8),
+    getLatestDeepArticle(),
+    getArticles({ section: "review", limit: 12 }),
+    getRotations("weekly", 6),
+    countGeekNewsToday(),
+    getLastSyncRun("geeknews"),
+    getLastSyncRun("trend"),
+    getSessionUser(),
+  ]);
 
   // 머리기사와 같은 날 수집분만 3열에 노출한다.
   const trendDate = lead?.collected_date;
@@ -47,6 +60,20 @@ export default async function HomePage() {
     countTrendBySource(trendDate),
     deep ? countComments(deep.id) : Promise.resolve(0),
   ]);
+
+  // 1면에서도 바로 보관할 수 있게, 지금 그리는 항목의 보관 여부를 함께 읽는다.
+  const [savedTrend, savedGeek] = user
+    ? await Promise.all([
+        getSavedKeys(
+          user.id,
+          "trend",
+          [lead?.source_url, ...trendItems.map((t) => t.source_url)].filter(
+            (u): u is string => !!u,
+          ),
+        ),
+        getSavedKeys(user.id, "geek", geek.map((g) => g.url)),
+      ])
+    : [new Set<string>(), new Set<string>()];
 
   const reviews = allReviews.slice(0, REVIEW_CARDS);
   const restReviews = allReviews.length - reviews.length;
@@ -85,17 +112,25 @@ export default async function HomePage() {
 
         <div className={s.mainGrid}>
           <div className={s.leftCol}>
-            <LeadStory lead={lead} />
+            <LeadStory lead={lead} canSave={!!user} saved={savedTrend} />
             <TrendGroups
               items={trendItems}
               totals={trendTotals}
               fetchedTotal={fetchedTotal || trendToday + geekToday}
+              canSave={!!user}
+              saved={savedTrend}
             />
           </div>
 
           <div className={s.divider} />
 
-          <GeekAside geek={geek} duty={duty} showEn={settings.showEnSubtitles} />
+          <GeekAside
+            geek={geek}
+            duty={duty}
+            showEn={settings.showEnSubtitles}
+            canSave={!!user}
+            saved={savedGeek}
+          />
         </div>
 
         <div className={s.blockRuleThick} />

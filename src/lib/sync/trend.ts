@@ -18,14 +18,27 @@ import { fetchStoryContext, fetchTopStories } from "./sources/hackernews";
 /**
  * 트렌드 브리핑 동기화.
  *
- *   1. GitHub Trending(daily/weekly/monthly) · HN · arXiv · 긱뉴스에서 후보 수집
+ *   1. GitHub Trending(daily/weekly/monthly) · HN · arXiv 에서 후보 수집
  *   2. 이미 DB 에 있는 source_url 제외 → 신규만 남김
- *   3. 신규 항목의 본문 컨텍스트 수집 (README / 상위 댓글 / 초록)
- *   4. LLM 에 5건씩 묶어 보내 한국어 기사 생성
- *   5. on conflict do nothing 으로 저장
+ *   3. 남은 신규를 출처별로 번갈아 뽑아 상한(maxNew) 안에 담음
+ *   4. 뽑힌 항목의 본문 컨텍스트 수집 (README / 상위 댓글 / 초록)
+ *   5. LLM 에 5건씩 묶어 보내 한국어 기사 생성 후 on conflict do nothing 으로 저장
  */
 
 const BATCH_SIZE = 5;
+
+/**
+ * only 를 주지 않았을 때 수집하는 출처.
+ *
+ * 긱뉴스는 '긱뉴스 동기화'(geek_news 테이블)가 원문 그대로 담당하므로 기본값에서
+ * 뺀다. 같은 글이 긱뉴스 데일리와 트렌드 브리핑에 두 번 실리는 것을 막는 것이
+ * 목적이다. 필요하면 --only=geeknews 로 명시해 돌릴 수 있다.
+ */
+export const DEFAULT_TREND_SOURCES: readonly TrendSource[] = [
+  "github",
+  "hn",
+  "arxiv",
+] as const;
 
 export interface TrendSyncOptions {
   maxNew?: number;
@@ -67,7 +80,9 @@ export async function syncTrend(
 ): Promise<TrendSyncResult> {
   const maxNew = opts.maxNew ?? 30;
   const hnMinScore = opts.hnMinScore ?? 150;
-  const only = opts.only;
+  const sources = new Set<TrendSource>(
+    opts.only && opts.only.length > 0 ? opts.only : DEFAULT_TREND_SOURCES,
+  );
 
   // dry-run 이면 LLM 을 아예 만들지 않는다 (키 없이도 수집 검증 가능).
   let llm: LlmProvider | null = null;
@@ -90,16 +105,17 @@ export async function syncTrend(
       });
 
   try {
+    const sourceList = [...sources].join(", ");
     run.log(
       llm
-        ? `트렌드 브리핑 수집 시작 · ${llm.name}/${llm.model} · 최대 ${maxNew}건`
-        : "트렌드 브리핑 수집 시작 · [dry-run] LLM 호출 없음",
+        ? `트렌드 브리핑 수집 시작 · ${llm.name}/${llm.model} · 출처 ${sourceList} · 최대 ${maxNew}건`
+        : `트렌드 브리핑 수집 시작 · [dry-run] LLM 호출 없음 · 출처 ${sourceList}`,
     );
 
     // --- 1. 후보 수집 ------------------------------------------------------
     const candidates: Candidate[] = [];
 
-    if (!only || only.includes("github")) {
+    if (sources.has("github")) {
       const repos = await fetchAllTrending((period, count) =>
         run.log(`GitHub Trending ${period} · ${count}건`),
       );
@@ -122,7 +138,7 @@ export async function syncTrend(
       }
     }
 
-    if (!only || only.includes("hn")) {
+    if (sources.has("hn")) {
       const stories = await fetchTopStories({ minScore: hnMinScore, limit: 25 });
       run.log(`Hacker News · 점수 ${hnMinScore} 이상 ${stories.length}건`);
       for (const st of stories) {
@@ -143,7 +159,7 @@ export async function syncTrend(
       }
     }
 
-    if (!only || only.includes("arxiv")) {
+    if (sources.has("arxiv")) {
       const papers = await fetchRecentPapers({ limit: 40 });
       run.log(`arXiv · 신규 논문 ${papers.length}건`);
       for (const p of papers) {
@@ -160,7 +176,7 @@ export async function syncTrend(
       }
     }
 
-    if (!only || only.includes("geeknews")) {
+    if (sources.has("geeknews")) {
       // 방금 동기화된 긱뉴스에서 최근 것만 가져다 쓴다.
       const { data: geek } = await db
         .from("geek_news")
@@ -216,18 +232,28 @@ export async function syncTrend(
       for (const r of data ?? []) known.add(r.source_url);
     }
 
-    let fresh = candidates.filter((c) => !known.has(c.sourceUrl));
-    run.skipped = candidates.length - fresh.length;
-    run.log(`신규 ${fresh.length}건 · 이미 있는 항목 ${run.skipped}건 건너뜀`);
+    const unseen = candidates.filter((c) => !known.has(c.sourceUrl));
+    run.skipped = candidates.length - unseen.length;
+    run.log(
+      `신규 ${unseen.length}건 (${countLabel(unseen)}) · 이미 있는 항목 ${run.skipped}건 건너뜀`,
+    );
 
-    // 무료 티어 할당량 보호를 위한 상한. 잘라낸 건 로그에 남긴다.
-    if (fresh.length > maxNew) {
-      const dropped = fresh.length - maxNew;
+    // 상한 안에서 출처를 골고루 담는다.
+    //
+    // 후보는 출처 순서대로 쌓이는데, GitHub Trending 은 daily/weekly/monthly 를
+    // 합쳐 수십 건이 나온다. 앞에서부터 그냥 자르면 상한 30건이 GitHub 으로만
+    // 채워지고 HN·arXiv 는 매일 밀려 한 건도 실리지 않는다. 출처별로 번갈아
+    // 뽑아 상한을 나눠 쓴다.
+    const fresh = takeRoundRobin(unseen, maxNew);
+
+    if (fresh.length < unseen.length) {
       run.log(
-        `상한 ${maxNew}건을 초과해 ${dropped}건은 이번 실행에서 제외 (다음 실행에서 수집됨)`,
+        `상한 ${maxNew}건 · 출처별로 나눠 담아 ${fresh.length}건 선정 (${countLabel(fresh)})`,
+      );
+      run.log(
+        `${unseen.length - fresh.length}건은 이번 실행에서 제외 (다음 실행에서 수집됨)`,
         "warn",
       );
-      fresh = fresh.slice(0, maxNew);
     }
 
     run.fresh = fresh.length;
@@ -374,4 +400,44 @@ function chunk<T>(arr: T[], size: number): T[][] {
   const out: T[][] = [];
   for (let i = 0; i < arr.length; i += size) out.push(arr.slice(i, i + size));
   return out;
+}
+
+/**
+ * 출처별로 한 건씩 번갈아 뽑아 cap 건까지 채운다.
+ *
+ * 각 출처 안의 순서(GitHub 은 트렌딩 순위, arXiv 는 최신순)는 그대로 유지되고,
+ * 어느 출처가 후보를 많이 내도 다른 출처의 자리를 빼앗지 않는다. 어떤 출처가
+ * 먼저 바닥나면 남은 자리는 후보가 남은 출처들이 나눠 갖는다.
+ */
+function takeRoundRobin(items: Candidate[], cap: number): Candidate[] {
+  if (cap <= 0) return [];
+  if (items.length <= cap) return items;
+
+  // Map 은 삽입 순서를 지키므로 출처 순서는 후보를 쌓은 순서와 같다.
+  const queues = new Map<TrendSource, Candidate[]>();
+  for (const c of items) {
+    const q = queues.get(c.source);
+    if (q) q.push(c);
+    else queues.set(c.source, [c]);
+  }
+
+  const picked: Candidate[] = [];
+  while (picked.length < cap) {
+    let movedAny = false;
+    for (const q of queues.values()) {
+      if (q.length === 0) continue;
+      picked.push(q.shift()!);
+      movedAny = true;
+      if (picked.length >= cap) break;
+    }
+    if (!movedAny) break;
+  }
+  return picked;
+}
+
+/** 'github 10 · hn 10 · arxiv 10' — 로그용 출처별 건수 */
+function countLabel(items: Candidate[]): string {
+  const counts = new Map<TrendSource, number>();
+  for (const c of items) counts.set(c.source, (counts.get(c.source) ?? 0) + 1);
+  return [...counts].map(([source, n]) => `${source} ${n}`).join(" · ") || "없음";
 }

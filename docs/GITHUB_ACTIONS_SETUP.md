@@ -5,11 +5,22 @@
 | 워크플로 | 트리거 | LLM | 하는 일 |
 |---|---|---|---|
 | `sync-geeknews.yml` | 매일 07:00 KST + 수동 | **없음** | news.hada.io 제목·요약을 그대로 수집 |
-| `sync-trend-gemini.yml` | 매일 07:10 KST + 수동 | Gemini | GitHub·HN·arXiv·긱뉴스 → 한국어 기사 |
-| `sync-trend-openai.yml` | **수동만** | OpenAI | 같은 작업을 OpenAI 로 |
+| `sync-trend-openai.yml` | 매일 07:10 KST + 수동 | OpenAI | GitHub·HN·arXiv → 한국어 기사 |
+| `sync-trend-gemini.yml` | **수동만** | Gemini | 같은 작업을 Gemini 로 |
 
-긱뉴스가 먼저(07:00) 돌고 트렌드가 나중(07:10)에 도는 이유는, 트렌드 브리핑이
-그날 수집된 긱뉴스 항목도 재료로 쓰기 때문입니다.
+정기 실행을 OpenAI 가 맡고 있습니다. `GEMINI_API_KEY` 를 아직 등록하지 않았기
+때문입니다. Gemini 로 되돌리려면 `sync-trend-gemini.yml` 의 `schedule` 주석을 풀고
+`sync-trend-openai.yml` 의 `schedule` 을 지우세요. **두 워크플로를 동시에 자동
+실행하면 안 됩니다** — 같은 URL 을 두고 경쟁하고(먼저 저장한 쪽이 이김) API 비용도
+이중으로 나갑니다.
+
+트렌드 브리핑은 `github,hn,arxiv` 세 출처를 모두 수집합니다 (스크립트 기본값).
+긱뉴스는 `긱뉴스 동기화` 가 원문 그대로 담당하므로 트렌드 쪽에서는 제외했고,
+필요하면 수동 실행에서 `only: geeknews` 로 지정할 수 있습니다. 1회 상한(30건)은
+출처별로 번갈아 나눠 담기 때문에 GitHub 항목이 상한을 다 차지하지 않습니다.
+
+긱뉴스가 먼저(07:00) 돌고 트렌드가 나중(07:10)에 도는 이유는 러너와 DB 접근이
+겹치지 않게 하려는 것입니다.
 
 ---
 
@@ -39,8 +50,8 @@ git push -u origin main
 |---|:---:|---|
 | `SUPABASE_URL` | ✅ | `https://<ref>.supabase.co` |
 | `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase Project Settings → API 의 `service_role` 키 |
-| `GEMINI_API_KEY` | 트렌드(Gemini)에 필요 | https://aistudio.google.com/apikey |
-| `OPENAI_API_KEY` | 트렌드(OpenAI)에 필요 | https://platform.openai.com/api-keys |
+| `OPENAI_API_KEY` | ✅ (정기 실행이 OpenAI) | https://platform.openai.com/api-keys |
+| `GEMINI_API_KEY` | Gemini 워크플로를 쓸 때만 | https://aistudio.google.com/apikey |
 
 CLI 로:
 
@@ -70,8 +81,9 @@ Actions 탭 → 워크플로 선택 → **Run workflow**
 
 1. `긱뉴스 동기화` 를 `dry_run: true` 로 → 로그에서 파싱이 정상인지 확인
 2. `긱뉴스 동기화` 를 그냥 실행 → 실제 적재
-3. `트렌드 브리핑 동기화 (Gemini)` 를 `dry_run: true` 로 → 수집 대상 확인 (LLM 호출 없음)
-4. `트렌드 브리핑 동기화 (Gemini)` 를 `limit: 5` 로 → 5건만 기사화해 품질 확인
+3. `트렌드 브리핑 동기화 (OpenAI)` 를 `dry_run: true` 로 → 수집 대상 확인 (LLM 호출 없음)
+   로그의 `신규 N건 (github .. · hn .. · arxiv ..)` 줄에서 세 출처가 다 들어왔는지 봅니다
+4. `트렌드 브리핑 동기화 (OpenAI)` 를 `limit: 5` 로 → 5건만 기사화해 품질 확인
 5. 결과가 괜찮으면 그대로 두면 다음날 07:00 부터 자동으로 돕니다
 
 ---
@@ -95,7 +107,8 @@ Actions 탭에 뜨는 안내 배너에서 다시 켜거나, 주기적으로 커�
 워크플로는 호출 간 7초 간격(`LLM_MIN_CALL_INTERVAL_MS=7000`)을 두고, 5건씩 묶어
 보냅니다. 신규 30건이면 6회 호출 ≈ 42초라 여유가 충분합니다.
 
-할당량을 소진했다면 `sync-trend-openai.yml` 을 수동 실행하세요.
+정기 실행은 OpenAI 가 맡고 있으므로 이 한도는 `sync-trend-gemini.yml` 을 수동으로
+돌릴 때만 걸립니다.
 
 ### 무료 티어의 데이터 이용 정책
 
@@ -111,7 +124,7 @@ Google AI Studio **무료 티어는 입력이 Google 제품 개선에 사용될 
 사내 문서·발표 자료·구성원 정보는 **전송되지 않습니다.** 그래도 사내 정책상
 외부 학습 데이터 이용을 금지한다면 두 가지 선택지가 있습니다.
 
-1. `sync-trend-openai.yml` 만 사용 (OpenAI API 는 기본적으로 학습에 미사용)
+1. `sync-trend-openai.yml` 만 사용 (OpenAI API 는 기본적으로 학습에 미사용) — 현재 구성
 2. Gemini 를 유료 Tier 1 으로 전환 (결제 수단 등록 시 학습 미사용으로 전환)
 
 ---
@@ -153,4 +166,5 @@ Google AI Studio **무료 티어는 입력이 Google 제품 개선에 사용될 
 | `ConnectTimeoutError` | 프록시 환경. `HTTPS_PROXY` 를 설정하면 스크립트가 자동으로 적용합니다 |
 | `429 Too Many Requests` (Gemini) | `LLM_MIN_CALL_INTERVAL_MS` 를 10000 이상으로 올리거나 `TREND_MAX_NEW` 를 줄이세요 |
 | 수집은 되는데 저장이 0건 | 이미 있는 URL 입니다. `sync_runs.skipped_count` 를 확인하세요 (정상 동작) |
+| 특정 출처만 들어온다 | `only` 입력값을 확인하세요. 비워 두면 `github,hn,arxiv` 세 출처를 모두 돌고 상한은 출처별로 나눠 담습니다 |
 | `sync_runs` 가 `running` 에서 멈춤 | 함수/잡이 타임아웃으로 죽은 경우입니다. 다음 실행은 15분 뒤부터 다시 시작됩니다 |

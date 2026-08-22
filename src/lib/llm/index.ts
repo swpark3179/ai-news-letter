@@ -1,3 +1,4 @@
+import { resolveLlmProvider } from "@/lib/env";
 import { GeminiProvider } from "./gemini";
 import { OpenAiProvider } from "./openai";
 import type { LlmProvider } from "./types";
@@ -8,13 +9,14 @@ export * from "./prompts";
 /**
  * LLM_PROVIDER 환경변수로 제공자를 고른다.
  *
- *   LLM_PROVIDER=gemini  → Google AI Studio (GEMINI_API_KEY)   — CI 기본
- *   LLM_PROVIDER=openai  → OpenAI (OPENAI_API_KEY)
+ *   LLM_PROVIDER=openai  → OpenAI (OPENAI_API_KEY)             — 정기 실행 기본
+ *   LLM_PROVIDER=gemini  → Google AI Studio (GEMINI_API_KEY)
  *
- * 워크플로 파일이 이 값만 바꿔서 같은 스크립트를 재사용한다.
+ * 워크플로 파일이 이 값만 바꿔서 같은 스크립트를 재사용한다. 값이 비어 있으면
+ * 키가 등록된 쪽을 쓴다 (resolveLlmProvider).
  */
 export function getLlm(override?: "gemini" | "openai"): LlmProvider {
-  const provider = override ?? (process.env.LLM_PROVIDER === "openai" ? "openai" : "gemini");
+  const provider = override ?? resolveLlmProvider();
 
   const intervalRaw = Number(process.env.LLM_MIN_CALL_INTERVAL_MS);
   const minIntervalMs = Number.isFinite(intervalRaw) && intervalRaw >= 0

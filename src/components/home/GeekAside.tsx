@@ -1,4 +1,5 @@
 import Link from "next/link";
+import ScrapButton from "@/components/scrap/ScrapButton";
 import { routes } from "@/lib/routes";
 import { hhmm } from "@/lib/format";
 import type { GeekNewsRow } from "@/types/db";
@@ -9,6 +10,10 @@ interface Props {
   geek: GeekNewsRow[];
   duty: RotationWithMember[];
   showEn: boolean;
+  /** 로그인 사용자에게만 보관 버튼을 붙인다 */
+  canSave?: boolean;
+  /** 이미 보관한 geek_news.url 집합 */
+  saved?: Set<string>;
 }
 
 const DUTY_STATUS: Record<string, { label: string; fg: string; bg: string }> = {
@@ -19,7 +24,13 @@ const DUTY_STATUS: Record<string, { label: string; fg: string; bg: string }> = {
 };
 
 /** 우측 사이드바 — 긱뉴스 데일리 + 이번 주 당번 (디자인 263~305행) */
-export default function GeekAside({ geek, duty, showEn }: Props) {
+export default function GeekAside({
+  geek,
+  duty,
+  showEn,
+  canSave = false,
+  saved,
+}: Props) {
   const updatedAt = geek[0]?.collected_at ?? geek[0]?.published_at;
 
   return (
@@ -68,6 +79,15 @@ export default function GeekAside({ geek, duty, showEn }: Props) {
                 )}
                 <span className={s.geekPts}>{g.points}</span>
               </div>
+              {canSave && (
+                <div className={s.geekSave}>
+                  <ScrapButton
+                    targetType="geek"
+                    targetKey={g.url}
+                    initialSaved={saved?.has(g.url) ?? false}
+                  />
+                </div>
+              )}
             </div>
           </div>
         </div>
