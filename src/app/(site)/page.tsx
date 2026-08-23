@@ -117,6 +117,7 @@ export default async function HomePage() {
               items={trendItems}
               totals={trendTotals}
               fetchedTotal={fetchedTotal || trendToday + geekToday}
+              collectedDate={trendDate ?? trendItems[0]?.collected_date}
               canSave={!!user}
               saved={savedTrend}
             />

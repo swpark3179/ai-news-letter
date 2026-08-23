@@ -1,7 +1,9 @@
 import Link from "next/link";
 import ScrapButton from "@/components/scrap/ScrapButton";
 import { sourceStyleOf } from "@/lib/domain";
+import { hhmm, shortDateKo } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { repoLabelOf } from "@/lib/trendItem";
 import type { TrendItemRow } from "@/types/db";
 import s from "./home.module.css";
 
@@ -26,6 +28,7 @@ export default function LeadStory({ lead, canSave = false, saved }: Props) {
 
   const style = sourceStyleOf(lead.source);
   const href = routes.trend(lead);
+  const repo = repoLabelOf(lead);
 
   // 첫 문단의 첫 글자를 드롭캡으로 떼어 낸다.
   const paragraphs = lead.body.filter((b) => b.type === "text").map((b) => b.t);
@@ -38,8 +41,12 @@ export default function LeadStory({ lead, canSave = false, saved }: Props) {
       <div className={s.leadKickerRow}>
         <span className={s.leadKicker}>트렌드 브리핑</span>
         <span className={s.dotSep} />
-        <span className={s.leadNote}>오늘 07:00 자동 요약</span>
+        <span className={s.leadNote}>
+          {shortDateKo(lead.collected_date)} {hhmm(lead.collected_at)} 수집
+        </span>
       </div>
+
+      {repo && <div className={s.leadRepo}>{repo}</div>}
 
       <Link href={href} className={s.leadTitle}>
         <h1 style={{ font: "inherit", letterSpacing: "inherit", margin: 0 }}>
