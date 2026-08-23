@@ -1,7 +1,9 @@
 import Link from "next/link";
 import ScrapButton from "@/components/scrap/ScrapButton";
 import { SRC, TREND_GROUPS, TREND_SOURCE_TO_KIND } from "@/lib/domain";
+import { shortDateKo } from "@/lib/format";
 import { routes } from "@/lib/routes";
+import { collectedLabelOf, metaTextOf, repoLabelOf } from "@/lib/trendItem";
 import type { TrendItemRow, TrendSource } from "@/types/db";
 import s from "./home.module.css";
 
@@ -12,6 +14,8 @@ interface Props {
   totals: Record<string, number>;
   /** 오늘 수집한 원문 총 건수 */
   fetchedTotal: number;
+  /** 3열에 걸린 항목의 수집 날짜 (YYYY-MM-DD) */
+  collectedDate?: string;
   /** 로그인 사용자에게만 보관 버튼을 붙인다 */
   canSave?: boolean;
   /** 이미 보관한 trend_items.source_url 집합 */
@@ -19,29 +23,6 @@ interface Props {
 }
 
 const PER_GROUP = 3;
-
-/** 메타 문구 — GitHub 은 별, HN 은 댓글, arXiv 는 논문 번호 */
-function metaOf(item: TrendItemRow): string {
-  const m = item.metrics ?? {};
-  switch (item.source) {
-    case "github": {
-      const stars = m.stars_in_period ?? m.stars;
-      const period =
-        item.source_variant === "weekly"
-          ? "this week"
-          : item.source_variant === "monthly"
-            ? "this month"
-            : "today";
-      return stars ? `★ ${Number(stars).toLocaleString("ko-KR")} ${period}` : "GitHub";
-    }
-    case "hn":
-      return m.comments ? `${m.comments} comments` : "Hacker News";
-    case "arxiv":
-      return m.arxiv_id ? `arXiv:${m.arxiv_id}` : "arXiv";
-    case "geeknews":
-      return m.points ? `${m.points} points` : "긱뉴스";
-  }
-}
 
 function groupLabel(source: TrendSource): string {
   return SRC[TREND_SOURCE_TO_KIND[source]].label;
@@ -52,6 +33,7 @@ export default function TrendGroups({
   items,
   totals,
   fetchedTotal,
+  collectedDate,
   canSave = false,
   saved,
 }: Props) {
@@ -61,10 +43,11 @@ export default function TrendGroups({
     <div className={s.todayBlock}>
       <div className={s.todayHead}>
         <span className={s.todayTitle}>오늘 요약된 게시물</span>
+        {collectedDate && (
+          <span className={s.todayDate}>{shortDateKo(collectedDate)} 수집</span>
+        )}
         <span className={s.todayNote}>
-          원문 {fetchedTotal.toLocaleString("ko-KR")}건을 수집해 {summarized}건을 개별
-          게시물로 요약했습니다 (머리기사 1건 포함) · 제목을 누르면 요약 전문, 원문 링크는
-          출처로 이동합니다
+          원문 {fetchedTotal.toLocaleString("ko-KR")}건 중 {summarized}건 요약 (머리기사 포함)
         </span>
       </div>
 
@@ -97,34 +80,47 @@ export default function TrendGroups({
                 <div className={s.groupEmpty}>아직 수집된 항목이 없습니다.</div>
               )}
 
-              {shown.map((item) => (
-                <div key={item.source_url} className={s.groupItem}>
-                  <Link href={routes.trend(item)} className={s.groupItemTitle}>
-                    {item.title}
-                  </Link>
-                  {item.deck && <div className={s.groupItemDeck}>{item.deck}</div>}
-                  <div className={s.groupItemMeta}>
-                    <span className={s.metaMono}>{metaOf(item)}</span>
-                    <a
-                      href={item.source_url}
-                      target="_blank"
-                      rel="noreferrer noopener"
-                      className={s.originLink}
+              {shown.map((item) => {
+                // 저장소 이름이 있으면 그것이 제목이고 AI 제목이 설명으로 내려간다.
+                // 어느 쪽이든 좁은 열에서 글덩어리가 되지 않게 텍스트 블록은 최대 두 개다.
+                const repo = repoLabelOf(item);
+                const lede = repo ? item.title : item.deck;
+                const meta = metaTextOf(item);
+                const collected = collectedLabelOf(item);
+
+                return (
+                  <div key={item.source_url} className={s.groupItem}>
+                    <Link
+                      href={routes.trend(item)}
+                      className={repo ? s.groupItemRepo : s.groupItemTitle}
                     >
-                      원문 ↗
-                    </a>
-                  </div>
-                  {canSave && (
-                    <div className={s.groupItemSave}>
-                      <ScrapButton
-                        targetType="trend"
-                        targetKey={item.source_url}
-                        initialSaved={saved?.has(item.source_url) ?? false}
-                      />
+                      {repo ?? item.title}
+                    </Link>
+                    {lede && <div className={s.groupItemLede}>{lede}</div>}
+                    <div className={s.groupItemMeta}>
+                      {collected && <span className={s.metaDate}>{collected}</span>}
+                      {meta && <span className={s.metaMono}>{meta}</span>}
+                      <a
+                        href={item.source_url}
+                        target="_blank"
+                        rel="noreferrer noopener"
+                        className={s.originLink}
+                      >
+                        원문 ↗
+                      </a>
                     </div>
-                  )}
-                </div>
-              ))}
+                    {canSave && (
+                      <div className={s.groupItemSave}>
+                        <ScrapButton
+                          targetType="trend"
+                          targetKey={item.source_url}
+                          initialSaved={saved?.has(item.source_url) ?? false}
+                        />
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
 
               <Link href={routes.section("trend", source)} className={s.groupMore}>
                 {rest > 0 ? `${label} ${rest}건 더보기 →` : `${label} 전체 보기 →`}

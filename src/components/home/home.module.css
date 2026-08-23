@@ -199,6 +199,18 @@
   color: var(--gray-500);
 }
 
+/** 머리기사 제목 위 저장소 이름 — GitHub 항목일 때만 붙는다 */
+.leadRepo {
+  margin-bottom: 6px;
+  font-family: var(--font-mono);
+  font-size: 13px;
+  font-weight: 700;
+  color: var(--purple-600);
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
 .leadTitle {
   font: 900 44px/1.14 var(--font-sans);
   letter-spacing: -1.8px;
@@ -313,6 +325,13 @@
   letter-spacing: -0.5px;
 }
 
+.todayDate {
+  font-family: var(--font-mono);
+  font-size: 11.5px;
+  font-weight: 700;
+  color: var(--gray-700);
+}
+
 .todayNote {
   font-size: 11.5px;
   color: var(--gray-500);
@@ -369,12 +388,24 @@
   border-bottom: 1px dashed var(--gray-300);
 }
 
+/**
+ * 좁은 3열에서 제목·설명이 무한정 늘어나 글덩어리가 되던 것을 두 줄로 잘라 낸다.
+ * -webkit-box 가 display 를 덮으므로 이 블록들에는 display 를 따로 주지 않는다.
+ * 잘린 텍스트에서는 text-wrap: pretty 가 의미 없어 함께 뺐다.
+ */
+.groupItemTitle,
+.groupItemLede {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  line-clamp: 2;
+  overflow: hidden;
+}
+
 .groupItemTitle {
   font: 700 15px/1.36 var(--font-sans);
   letter-spacing: -0.4px;
   color: var(--gray-900);
-  text-wrap: pretty;
-  display: block;
   text-decoration: none;
 }
 
@@ -383,11 +414,30 @@
   text-decoration: none;
 }
 
-.groupItemDeck {
+/** GitHub 행의 제목 자리 — 저장소 이름은 한 줄로 자른다 (위클리 리뷰 .reviewRepo 와 같은 역할) */
+.groupItemRepo {
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 13.5px;
+  font-weight: 700;
+  letter-spacing: -0.2px;
+  color: var(--gray-900);
+  text-decoration: none;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.groupItemRepo:hover {
+  color: var(--purple-700);
+  text-decoration: none;
+}
+
+/** 제목 아래 한 줄 설명 — 제목의 연장이라 기존 deck 보다 한 단계 진하다 */
+.groupItemLede {
   margin-top: 7px;
   font: 400 12.5px/1.62 var(--font-sans);
-  color: var(--gray-600);
-  text-wrap: pretty;
+  color: var(--gray-700);
 }
 
 .groupItemMeta {
@@ -396,6 +446,19 @@
   align-items: center;
   gap: 9px;
   min-width: 0;
+}
+
+/**
+ * 수집 날짜 — 지표보다 진하고, 절대 줄어들지 않는다.
+ * 지표와 한 문자열로 묶어 두면 좁은 열에서 뒤에 붙은 날짜부터 잘려 나간다.
+ */
+.metaDate {
+  font-family: var(--font-mono);
+  font-size: 10.5px;
+  font-weight: 700;
+  color: var(--gray-600);
+  white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .metaMono {

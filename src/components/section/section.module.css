@@ -155,11 +155,40 @@
   color: var(--purple-700);
 }
 
+/** GitHub 행의 제목 자리 — 저장소 이름 */
+.rowRepo {
+  margin-top: 7px;
+  display: block;
+  font-family: var(--font-mono);
+  font-size: 19px;
+  font-weight: 700;
+  letter-spacing: -0.5px;
+  color: var(--gray-900);
+  overflow-wrap: anywhere;
+}
+
+.rowTitleLink .rowRepo {
+  margin-top: 0;
+}
+
+/** 저장소 이름 아래 AI 제목 — 설명이지만 제목의 연장이라 deck 보다 진하다 */
+.rowLede {
+  margin-top: 8px;
+  font: 600 15px/1.5 var(--font-sans);
+  color: var(--gray-800);
+  text-wrap: pretty;
+}
+
 .rowDeck {
   margin-top: 8px;
   font: 400 14px/1.65 var(--font-sans);
   color: var(--gray-600);
-  text-wrap: pretty;
+  /* 전폭이라 메인보다는 여유가 있지만, 긴 deck 이 행 높이를 흔들지 않게 세 줄로 자른다 */
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 3;
+  line-clamp: 3;
+  overflow: hidden;
 }
 
 .rowTags {

@@ -11,6 +11,7 @@ import {
 } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import { issueNum, shortDot } from "@/lib/format";
+import { repoLabelOf } from "@/lib/trendItem";
 import {
   getArticles,
   getGeekNews,
@@ -241,11 +242,13 @@ async function TrendList({
     <>
       {rows.map((t) => {
         const style = sourceStyleOf(t.source);
+        // 저장소 이름이 있으면 그것이 제목이고 AI 제목이 바로 아래 설명 줄이 된다.
+        const repo = repoLabelOf(t);
         return (
           <div key={t.source_url} className={s.row}>
             <div>
               <div className={s.rowDate}>{shortDot(t.collected_date)}</div>
-              <div className={s.rowNum}>NO.{issueNum(t.collected_date)}</div>
+              <div className={s.rowNum}>수집</div>
             </div>
             <div>
               <div className={s.rowKicker}>
@@ -253,8 +256,11 @@ async function TrendList({
                 {t.source_variant ? ` (${t.source_variant})` : ""}
               </div>
               <Link href={routes.trend(t)} className={s.rowTitleLink}>
-                <span className={s.rowTitle}>{t.title}</span>
+                <span className={repo ? s.rowRepo : s.rowTitle}>
+                  {repo ?? t.title}
+                </span>
               </Link>
+              {repo && <div className={s.rowLede}>{t.title}</div>}
               {t.deck && <div className={s.rowDeck}>{t.deck}</div>}
               <div className={s.rowTags}>
                 {t.tags.map((tag) => (
