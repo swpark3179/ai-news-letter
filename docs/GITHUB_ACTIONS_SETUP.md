@@ -69,7 +69,7 @@ Settings → Secrets and variables → Actions → **Variables** 탭
 | 이름 | 기본값 | 용도 |
 |---|---|---|
 | `GEMINI_MODEL` | `gemini-2.5-flash` | 모델 교체 시 |
-| `OPENAI_MODEL` | `gpt-5-mini` | 모델 교체 시 |
+| `OPENAI_MODEL` | `gpt-5.6-luna` | 모델 교체 시 |
 
 ---
 

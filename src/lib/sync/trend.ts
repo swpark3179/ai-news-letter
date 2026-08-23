@@ -1,4 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
+import { blockHasContent } from "@/lib/blocks";
 import { kstDateString } from "@/lib/format";
 import {
   TREND_BATCH_SCHEMA,
@@ -337,7 +338,13 @@ export async function syncTrend(
           run.log(`배치 ${bi + 1} · 알 수 없는 index ${d.index} 무시`, "warn");
           continue;
         }
-        if (!d.title?.trim() || !Array.isArray(d.body) || d.body.length === 0) {
+        // 빈 판정을 필터와 같은 기준으로 맞춘다. 예전에는 length 만 봐서,
+        // 공백만 든 블록으로 채워진 draft 가 통과해 body: [] 로 발행됐다.
+        const body = Array.isArray(d.body)
+          ? d.body.filter(blockHasContent)
+          : [];
+
+        if (!d.title?.trim() || body.length === 0) {
           run.log(`배치 ${bi + 1} · 내용이 비어 ${c.sourceUrl} 건너뜀`, "warn");
           continue;
         }
@@ -351,7 +358,7 @@ export async function syncTrend(
           metrics: c.metrics,
           title: d.title.trim(),
           deck: d.deck?.trim() || null,
-          body: d.body.filter((b) => b.t?.trim()),
+          body,
           tags: (d.tags ?? []).slice(0, 4).map((t) => t.trim()).filter(Boolean),
           llm_provider: llm!.name,
           llm_model: llm!.model,

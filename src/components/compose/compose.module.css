@@ -174,7 +174,6 @@
   margin-bottom: 6px;
 }
 
-.select,
 .textInput {
   width: 100%;
   box-sizing: border-box;
@@ -762,4 +761,160 @@
   max-width: 1280px;
   margin: 0 auto;
   padding: 24px 28px 72px;
+}
+
+/* ==========================================================================
+ * 본문 서식 툴바 · 표 편집기
+ *
+ * 정렬/크기/색상 자체의 결과 모양은 components/article/blocks.module.css 가
+ * 갖고 있다 (지면과 공유). 여기 있는 것은 그 값을 고르는 UI 뿐이다.
+ * ========================================================================== */
+
+/** 필드 아래 한 줄 안내 (작성자 고정 안내 등) */
+.fieldHint {
+  margin-top: 5px;
+  font-size: 11px;
+  color: var(--gray-500);
+}
+
+/** .block 그리드의 가운데 칸 — 툴바와 입력을 위아래로 쌓는다. */
+.blockMain {
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.fmtBar {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+  padding-bottom: 7px;
+  border-bottom: 1px solid var(--gray-100);
+}
+
+.fmtLabel {
+  font-size: 10.5px;
+  font-weight: 600;
+  color: var(--gray-500);
+  white-space: nowrap;
+}
+
+.fmtDivider {
+  width: 1px;
+  height: 14px;
+  margin: 0 4px;
+  background: var(--gray-200);
+}
+
+.fmtBtn {
+  padding: 3px 8px;
+  border: 1px solid var(--gray-200);
+  background: #fff;
+  border-radius: var(--radius-sm);
+  font-size: 11px;
+  font-weight: 500;
+  color: var(--gray-600);
+  white-space: nowrap;
+  cursor: pointer;
+}
+
+.fmtBtn:hover {
+  border-color: var(--purple-300);
+  color: var(--purple-700);
+}
+
+.fmtBtnOn {
+  border-color: var(--purple-500);
+  background: var(--purple-50);
+  color: var(--purple-700);
+}
+
+/** 색상 스와치 — 색 자체가 라벨이므로 텍스트를 두지 않는다 (title/aria 로 보완). */
+.swatch {
+  width: 17px;
+  height: 17px;
+  padding: 0;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-full);
+  cursor: pointer;
+}
+
+.swatchOn {
+  box-shadow: 0 0 0 2px var(--purple-200);
+  border-color: var(--purple-600);
+}
+
+/* --- 표 편집기 ----------------------------------------------------------- */
+
+.tableEditor {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/** 열이 많은 표가 편집기 폭을 밀어내지 않게 표만 가로로 흐르게 한다. */
+.tableGridScroll {
+  overflow-x: auto;
+}
+
+.tableGrid {
+  border-collapse: collapse;
+}
+
+.tableGrid td {
+  padding: 0;
+  border: 1px solid var(--gray-200);
+}
+
+.cellInput {
+  box-sizing: border-box;
+  width: 132px;
+  height: 32px;
+  border: none;
+  padding: 0 8px;
+  font: 400 12.5px/1.5 var(--font-sans);
+  color: var(--gray-800);
+  background: transparent;
+  outline: none;
+}
+
+.cellInput:focus {
+  background: var(--purple-25);
+}
+
+.cellHead {
+  font-weight: 700;
+  color: var(--gray-700);
+  background: var(--gray-50);
+}
+
+.tableTools {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 4px;
+}
+
+/**
+ * 미리보기 안의 표 — 마크업은 지면과 BlockTable 을 공유하므로, 좁은 사이드바에
+ * 맞게 크기만 눌러 준다.
+ *
+ * 요소 선택자를 한 단계 더 붙인 것은 특정도 때문이다. blocks.module.css 의
+ * `.table` 은 (0,1,0), `.table th` 는 (0,1,1) 인데, CSS 모듈은 두 파일의 출력
+ * 순서를 보장하지 않아서 같은 특정도로는 어느 쪽이 이길지 알 수 없다.
+ * `.pvTable table`(0,1,1) · `.pvTable table th`(0,1,2) 로 확실히 이기게 한다.
+ */
+.pvTable table {
+  font: 400 11px/1.5 var(--font-sans);
+}
+
+.pvTable table th,
+.pvTable table td {
+  padding: 4px 6px;
+}
+
+.pvTable > div {
+  margin: 12px 0;
 }

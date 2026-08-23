@@ -7,12 +7,39 @@
 // 공통
 // ---------------------------------------------------------------------------
 
-/** 기사 본문 블록. trend_items.body / articles.body 공통 구조. */
-export type BlockType = "text" | "head" | "quote";
+/**
+ * 기사 본문 블록. trend_items.body / articles.body 공통 구조.
+ *
+ * "table" 과 서식 속성(align/size/color)은 작성 화면에서 사람이 쓰는 것이고,
+ * 트렌드 브리핑을 쓰는 LLM 은 text/head/quote 만 낸다 (llm/prompts.ts 참고).
+ * 두 테이블이 같은 타입을 공유하므로 trend_items.body 도 타입상으로는 table 을
+ * 담을 수 있다 — 읽는 쪽은 그래서 table 을 만나도 죽지 않게 써야 한다.
+ *
+ * 서식 값은 전부 열거형이다. 자유 문자열을 받아 style 로 흘리지 않는다 —
+ * 색상·크기는 CSS 모듈 클래스로만 매핑된다(components/article/blocks.module.css).
+ */
+export type BlockType = "text" | "head" | "quote" | "table";
+export type BlockAlign = "left" | "center" | "right";
+export type BlockSize = "sm" | "md" | "lg";
+export type BlockColor =
+  | "default"
+  | "purple"
+  | "blue"
+  | "green"
+  | "red"
+  | "yellow"
+  | "gray";
 
 export interface Block {
   type: BlockType;
+  /** table 이면 표 설명(캡션). 비어 있어도 된다. */
   t: string;
+  /** 이하 전부 optional — 서식 없이 발행된 기존 행이 그대로 렌더돼야 한다. */
+  align?: BlockAlign;
+  size?: BlockSize;
+  color?: BlockColor;
+  /** table 전용. rows[0] 을 머리행으로 쓴다. */
+  rows?: string[][];
 }
 
 export type MemberRole = "unit_lead" | "member" | "subscriber";

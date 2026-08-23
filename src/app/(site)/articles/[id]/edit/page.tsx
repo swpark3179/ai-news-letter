@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import ArticleComposer from "@/components/compose/ArticleComposer";
 import { getSessionUser } from "@/lib/auth/current-user";
 import { canEditArticle } from "@/lib/auth/permissions";
-import { getArticleFull, getUnitMembers } from "@/lib/data/content";
+import { getArticleFull } from "@/lib/data/content";
 import { getArticleAttachment } from "@/lib/data/ops";
 
 export const dynamic = "force-dynamic";
@@ -30,10 +30,7 @@ export default async function EditArticlePage({ params }: Props) {
   // 권한이 없으면 글이 있다는 사실도 알리지 않는다.
   if (!canEditArticle(user, article)) notFound();
 
-  const [members, attachment] = await Promise.all([
-    user.isAdmin ? getUnitMembers() : Promise.resolve([]),
-    getArticleAttachment(article.id),
-  ]);
+  const attachment = await getArticleAttachment(article.id);
 
   return (
     <ArticleComposer
@@ -41,8 +38,6 @@ export default async function EditArticlePage({ params }: Props) {
       viewer={user}
       initialSection={article.section}
       initial={article}
-      canPickAuthor={user.isAdmin}
-      members={members.map((m) => ({ id: m.id, name: m.name, role: m.role }))}
       attachedFileName={attachment?.file_name ?? null}
     />
   );

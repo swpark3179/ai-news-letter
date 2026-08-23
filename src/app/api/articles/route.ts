@@ -4,15 +4,41 @@ import { getSessionUser } from "@/lib/auth/current-user";
 import { verifyAdmin } from "@/lib/auth/permissions";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { readMinutes } from "@/lib/format";
+import {
+  TABLE_MAX_CELL_CHARS,
+  TABLE_MAX_COLS,
+  TABLE_MAX_ROWS,
+  blockHasContent,
+  blockPlainText,
+  normalizeBlock,
+} from "@/lib/blocks";
 import { isHttpUrl } from "@/lib/url";
 import type { ArticleRow } from "@/types/db";
 
 export const runtime = "nodejs";
 
+/**
+ * z.object 는 모르는 키를 조용히 버린다(strictObject 가 아니다). 그래서 화면이
+ * 보내는 필드를 여기에 빠뜨리면 400 이 아니라 200 이 돌아오면서 그 필드만
+ * 사라진다 — payload 가 Record<string, unknown> 이라 타입 검사도 안 걸린다.
+ * Block 타입에 필드를 더할 때 이 스키마를 같이 고쳐야 한다.
+ */
 const blockSchema = z.object({
-  type: z.enum(["text", "head", "quote"]),
+  type: z.enum(["text", "head", "quote", "table"]),
   // 자동 저장이 몇 초마다 돌므로 블록 하나가 무한정 커지지 않게 상한을 둔다.
-  t: z.string().max(20000),
+  // 표 블록에서는 캡션이라 비어 있을 수 있다.
+  t: z.string().max(20000).default(""),
+  align: z.enum(["left", "center", "right"]).optional(),
+  size: z.enum(["sm", "md", "lg"]).optional(),
+  color: z
+    .enum(["default", "purple", "blue", "green", "red", "yellow", "gray"])
+    .optional(),
+  // t 에 상한을 둔 것과 같은 이유로 표도 묶는다. body 배열의 .max(200) 은
+  // 블록 개수만 제한하므로, 셀·행·표 각각에 상한이 없으면 그 불변식이 깨진다.
+  rows: z
+    .array(z.array(z.string().max(TABLE_MAX_CELL_CHARS)).max(TABLE_MAX_COLS))
+    .max(TABLE_MAX_ROWS)
+    .optional(),
 });
 
 const sourceSchema = z.object({
@@ -34,7 +60,8 @@ const bodySchema = z.object({
   body: z.array(blockSchema).max(200),
   tags: z.array(z.string().trim().max(40)).max(8),
   repoLabel: z.string().trim().max(200).optional().nullable(),
-  authorId: z.string().uuid().optional().nullable(),
+  // authorId 는 받지 않는다 — 글은 항상 세션의 본인 것이다. z.object 가 모르는
+  // 키를 버리므로, 열어 둔 옛 탭이 계속 보내도 400 이 아니라 무시된다.
   status: z.enum(["draft", "published"]),
   talkDate: z.string().optional().nullable(),
   talkRoom: z.string().max(200).optional().nullable(),
@@ -53,6 +80,8 @@ type ExistingArticle = Pick<
  * 권한:
  *   - 로그인한 회원이면 누구나 새 글을 쓸 수 있다 (게스트는 세션이 없어 401).
  *   - 남의 글은 DB 에서 확인된 관리자만 고칠 수 있다.
+ *   - 작성자는 항상 세션의 본인이다. 대리 지정 경로는 없앴다. 관리자가 남의 글을
+ *     고칠 때도 author_id 는 손대지 않으므로 원 작성자가 유지된다.
  *
  * RLS 는 정책 없이 켜져 있고 접근은 전부 service_role 이므로(0007_rls.sql),
  * 여기서 막지 않으면 아무것도 막히지 않는다.
@@ -74,8 +103,15 @@ export async function POST(req: Request) {
     return NextResponse.json({ error: msg }, { status: 400 });
   }
 
-  // 발행하려면 본문이 있어야 한다.
-  const blocks = input.body.filter((b) => b.t.trim());
+  /**
+   * 발행하려면 본문이 있어야 한다.
+   *
+   * 여기가 articles.body 로 가는 유일한 통로다. body 열에 CHECK 제약이 없고
+   * supabase 클라이언트도 untyped 라, 정규화를 여기서 하지 않으면 어떤 모양이든
+   * 그대로 들어간다. 빈 판정은 blockHasContent 로 한다 — 캡션 없는 표는
+   * `b.t.trim()` 기준으로는 빈 블록이라 저장 직전에 사라진다.
+   */
+  const blocks = input.body.map(normalizeBlock).filter(blockHasContent);
   if (input.status === "published" && blocks.length === 0) {
     return NextResponse.json(
       { error: "본문이 비어 있어 발행할 수 없습니다." },
@@ -123,15 +159,6 @@ export async function POST(req: Request) {
     }
   }
 
-  // 작성자 대리 지정은 관리자만. 그 외에는 세션의 본인으로 강제한다.
-  let authorId: string | undefined;
-  if (input.authorId && input.authorId !== user.id) {
-    if (!isAdmin) isAdmin = await verifyAdmin(user);
-    if (isAdmin) authorId = input.authorId;
-  } else if (input.authorId) {
-    authorId = input.authorId;
-  }
-
   const now = new Date().toISOString();
 
   /**
@@ -155,15 +182,15 @@ export async function POST(req: Request) {
     published_at: publishedAt,
     talk_date: input.section === "deep" && input.talkDate ? input.talkDate : null,
     talk_room: input.section === "deep" ? input.talkRoom?.trim() || null : null,
-    read_minutes: readMinutes(blocks.map((b) => b.t).join(" ")),
+    // 표 셀도 분량에 들어간다 — b.t 만 이으면 표만 있는 글이 1분으로 나온다.
+    read_minutes: readMinutes(blocks.map(blockPlainText).join(" ")),
   };
 
-  // photo_path 는 이 화면에 입력 UI 가 없다. 페이로드에 넣으면 저장할 때마다
-  // 기존 발표 현장 사진이 지워진다.
+  // photo_path 와 author_id 는 이 화면에 입력 UI 가 없다. 페이로드에 넣으면
+  // 저장할 때마다 기존 발표 현장 사진이 지워지고 작성자가 덮어써진다.
+  // 그래서 신규 생성에서 한 번만 본인으로 찍고, 수정에서는 아예 넣지 않는다.
   if (!existing) {
-    payload.author_id = authorId ?? user.id;
-  } else if (authorId) {
-    payload.author_id = authorId;
+    payload.author_id = user.id;
   }
 
   let articleId = existing?.id ?? null;

@@ -13,11 +13,20 @@ import {
   type UploadProgress,
 } from "@/lib/upload/chunked";
 import type { SessionUser } from "@/lib/auth/session";
+import {
+  TABLE_MAX_COLS,
+  TABLE_MAX_ROWS,
+  blockHasContent,
+  blockPlainText,
+} from "@/lib/blocks";
+import BlockTable, { formatClass } from "@/components/article/BlockTable";
 import type {
   ArticleFull,
   Block,
+  BlockAlign,
+  BlockColor,
+  BlockSize,
   BlockType,
-  MemberRow,
   SourceKind,
   WritableSection,
 } from "@/types/db";
@@ -29,8 +38,6 @@ interface DraftSource {
   url: string;
 }
 
-type MemberOption = Pick<MemberRow, "id" | "name" | "role">;
-
 interface Props {
   mode: "create" | "edit";
   viewer: SessionUser;
@@ -38,9 +45,6 @@ interface Props {
   initialSection: WritableSection;
   /** 이어쓸 임시저장 글(create) 또는 수정 대상 글(edit) */
   initial: ArticleFull | null;
-  /** 관리자만 작성자를 대신 지정할 수 있다 */
-  canPickAuthor: boolean;
-  members: MemberOption[];
   /** 발표 자료로 이미 붙어 있는 첨부 (심층 분석 수정 시) */
   attachedFileName: string | null;
 }
@@ -49,13 +53,56 @@ const BLOCK_LABEL: Record<BlockType, string> = {
   text: "본문",
   head: "소제목",
   quote: "인용",
+  table: "표",
 };
 
 const BLOCK_STYLE: Record<BlockType, { bg: string; fg: string }> = {
   text: { bg: "var(--gray-100)", fg: "var(--gray-700)" },
   head: { bg: "var(--purple-50)", fg: "var(--purple-700)" },
   quote: { bg: "var(--yellow-50)", fg: "var(--yellow-800)" },
+  table: { bg: "var(--blue-50)", fg: "var(--blue-700)" },
 };
+
+/**
+ * 블록 추가 버튼의 목록. BLOCK_LABEL 에서 뽑는다.
+ *
+ * 예전에는 `["text","head","quote"] as BlockType[]` 이라고 적어 두었는데, 그건
+ * 배열이 아니라 캐스트라서 BlockType 에 종류를 더해도 컴파일 에러가 나지 않고
+ * 버튼만 조용히 안 생겼다. BLOCK_LABEL 은 Record<BlockType,…> 이라 빠뜨리면
+ * 컴파일이 깨지므로, 여기서 파생시켜 알림 지점을 한곳으로 모은다.
+ */
+const BLOCK_TYPES = Object.keys(BLOCK_LABEL) as BlockType[];
+
+/** 서식 선택 버튼. 값은 전부 열거형이라 style 로 흘러 들어가지 않는다. */
+const ALIGNS: { v: BlockAlign; label: string }[] = [
+  { v: "left", label: "왼쪽" },
+  { v: "center", label: "가운데" },
+  { v: "right", label: "오른쪽" },
+];
+
+const SIZES: { v: BlockSize; label: string }[] = [
+  { v: "sm", label: "작게" },
+  { v: "md", label: "보통" },
+  { v: "lg", label: "크게" },
+];
+
+const COLORS: { v: BlockColor; label: string; swatch: string }[] = [
+  { v: "default", label: "기본", swatch: "var(--gray-800)" },
+  { v: "purple", label: "보라", swatch: "var(--purple-700)" },
+  { v: "blue", label: "파랑", swatch: "var(--blue-700)" },
+  { v: "green", label: "초록", swatch: "var(--green-700)" },
+  { v: "red", label: "빨강", swatch: "var(--red-700)" },
+  { v: "yellow", label: "노랑", swatch: "var(--yellow-700)" },
+  { v: "gray", label: "회색", swatch: "var(--gray-500)" },
+];
+
+/** 새 표의 초기 모양 — 머리행 + 본문 한 행. */
+function emptyTable(): string[][] {
+  return [
+    ["", ""],
+    ["", ""],
+  ];
+}
 
 const SOURCE_CYCLE: SourceKind[] = ["gh", "hn", "ax", "gk"];
 
@@ -94,8 +141,6 @@ export default function ArticleComposer({
   viewer,
   initialSection,
   initial,
-  canPickAuthor,
-  members,
   attachedFileName,
 }: Props) {
   const router = useRouter();
@@ -109,7 +154,6 @@ export default function ArticleComposer({
   );
   const [title, setTitle] = useState(initial?.title ?? "");
   const [deck, setDeck] = useState(initial?.deck ?? "");
-  const [authorId, setAuthorId] = useState(initial?.author_id ?? viewer.id);
   const [tags, setTags] = useState(initial?.tags.join(", ") ?? "");
   const [repoLabel, setRepoLabel] = useState(initial?.repo_label ?? "");
   const [talkDate, setTalkDate] = useState(toLocalInput(initial?.talk_date ?? null));
@@ -140,36 +184,22 @@ export default function ArticleComposer({
   const [attachmentId, setAttachmentId] = useState<string | null>(null);
 
   const isDeep = section === "deep";
-  const charCount = blocks.reduce((n, b) => n + b.t.length, 0);
+  const charCount = blocks.reduce((n, b) => n + blockPlainText(b).length, 0);
   const tagList = useMemo(
     () => tags.split(",").map((t) => t.trim()).filter(Boolean),
     [tags],
   );
-  const filledBlocks = blocks.filter((b) => b.t.trim());
+  const filledBlocks = blocks.filter(blockHasContent);
   const filledSources = sources.filter((x) => x.url.trim());
 
   /**
-   * 작성자 후보. members 는 유닛원만 담고 있어서, 구독자가 쓴 글을 관리자가
-   * 고칠 때 원 작성자가 목록에서 빠져 조용히 다른 사람으로 바뀐다.
-   * 그래서 현재 작성자와 본인을 명시적으로 끼워 넣는다.
+   * 표시용 작성자 이름. 고를 수 없고 저장 페이로드에도 넣지 않는다 — 서버가
+   * 신규 생성에서 세션의 본인으로 찍고, 수정에서는 author_id 를 건드리지 않는다.
+   *
+   * 수정 화면에서는 원 작성자를 보여 준다. 관리자가 남의 글을 열었을 때 자기
+   * 이름이 보이면 저장하면 작성자가 바뀐다고 오해하게 된다 (바뀌지 않는다).
    */
-  const authorOptions = useMemo<MemberOption[]>(() => {
-    const list = [...members];
-    const push = (m: MemberOption) => {
-      if (!list.some((x) => x.id === m.id)) list.unshift(m);
-    };
-    if (initial?.author) {
-      push({
-        id: initial.author.id,
-        name: initial.author.name,
-        role: initial.author.role,
-      });
-    }
-    push({ id: viewer.id, name: viewer.name, role: viewer.role });
-    return list;
-  }, [members, initial, viewer]);
-
-  const authorName = authorOptions.find((m) => m.id === authorId)?.name ?? viewer.name;
+  const authorName = initial?.author?.name ?? viewer.name;
 
   /** 이미 붙어 있는 발표 자료가 있으면 재업로드를 강요하지 않는다. */
   const hasDeckFile = attachmentId !== null || attachedFileName !== null;
@@ -189,9 +219,79 @@ export default function ArticleComposer({
   const canPublish = checklist.every((c) => c.ok);
 
   // --- 블록 조작 -----------------------------------------------------------
-  const addBlock = (type: BlockType) => setBlocks((b) => [...b, { type, t: "" }]);
+
+  /**
+   * 표는 rows 를 미리 채워서 만든다. rows 없이 만들면 셀 격자가 그려지지 않고,
+   * blockHasContent 기준으로도 빈 블록이라 자동 저장에서 그대로 사라진다.
+   */
+  const addBlock = (type: BlockType) =>
+    setBlocks((b) => [
+      ...b,
+      type === "table" ? { type, t: "", rows: emptyTable() } : { type, t: "" },
+    ]);
+
   const setBlockText = (i: number, t: string) =>
     setBlocks((b) => b.map((x, j) => (j === i ? { ...x, t } : x)));
+
+  /**
+   * 서식 속성 변경. 같은 값을 다시 누르면 속성을 지워 기본값으로 돌린다.
+   * 그래야 "기본값" 상태를 표현할 수 있고, 필드가 없는 기존 글과 모양이 같아진다.
+   */
+  const toggleBlockAttr = <K extends "align" | "size" | "color">(
+    i: number,
+    key: K,
+    value: NonNullable<Block[K]>,
+  ) =>
+    setBlocks((b) =>
+      b.map((x, j) => {
+        if (j !== i) return x;
+        const next = { ...x };
+        if (next[key] === value) delete next[key];
+        else next[key] = value;
+        return next;
+      }),
+    );
+
+  /**
+   * 표 조작. 전부 rows 를 새 배열로 복제해서 돌려준다.
+   *
+   * 제자리에서 고치면 snapshot memo 의 의존성 배열이 같은 참조를 보고 넘어가
+   * 자동 저장이 아예 돌지 않는다 (변경 감지가 blocks 참조 기준이다).
+   */
+  const cloneRows = (x: Block) => (x.rows ?? emptyTable()).map((r) => [...r]);
+
+  const withRows = (i: number, fn: (rows: string[][]) => string[][]) =>
+    setBlocks((b) =>
+      b.map((x, j) => (j === i ? { ...x, rows: fn(cloneRows(x)) } : x)),
+    );
+
+  const setCell = (i: number, r: number, c: number, v: string) =>
+    withRows(i, (rows) => {
+      if (rows[r]) rows[r][c] = v;
+      return rows;
+    });
+
+  const addRow = (i: number) =>
+    withRows(i, (rows) =>
+      rows.length >= TABLE_MAX_ROWS
+        ? rows
+        : [...rows, Array.from({ length: rows[0]?.length ?? 2 }, () => "")],
+    );
+
+  const delRow = (i: number) =>
+    // 머리행은 남긴다 — 머리행이 없으면 표가 아니다.
+    withRows(i, (rows) => (rows.length <= 1 ? rows : rows.slice(0, -1)));
+
+  const addCol = (i: number) =>
+    withRows(i, (rows) =>
+      (rows[0]?.length ?? 0) >= TABLE_MAX_COLS ? rows : rows.map((r) => [...r, ""]),
+    );
+
+  const delCol = (i: number) =>
+    withRows(i, (rows) =>
+      (rows[0]?.length ?? 0) <= 1 ? rows : rows.map((r) => r.slice(0, -1)),
+    );
+
   const moveBlock = (i: number, dir: -1 | 1) =>
     setBlocks((b) => {
       const j = i + dir;
@@ -200,8 +300,15 @@ export default function ArticleComposer({
       [next[i], next[j]] = [next[j], next[i]];
       return next;
     });
+
+  /**
+   * 마지막 하나는 지우는 대신 빈 본문 블록으로 되돌린다. 예전에는 삭제를 그냥
+   * 막아서, 블록이 표 하나뿐이면 표를 빼낼 방법이 없었다.
+   */
   const delBlock = (i: number) =>
-    setBlocks((b) => (b.length === 1 ? b : b.filter((_, j) => j !== i)));
+    setBlocks((b) =>
+      b.length === 1 ? [{ type: "text", t: "" }] : b.filter((_, j) => j !== i),
+    );
 
   // --- 소스 조작 -----------------------------------------------------------
   const cycleKind = (i: number) =>
@@ -228,7 +335,6 @@ export default function ArticleComposer({
         section,
         title,
         deck,
-        authorId,
         tags,
         repoLabel,
         talkDate,
@@ -241,7 +347,6 @@ export default function ArticleComposer({
       section,
       title,
       deck,
-      authorId,
       tags,
       repoLabel,
       talkDate,
@@ -347,7 +452,6 @@ export default function ArticleComposer({
             body: filledBlocks,
             tags: tagList,
             repoLabel: repoLabel.trim() || null,
-            authorId,
             status,
             talkDate: isDeep && talkDate ? new Date(talkDate).toISOString() : null,
             talkRoom: isDeep ? talkRoom.trim() || null : null,
@@ -448,7 +552,6 @@ export default function ArticleComposer({
         setSection(initialSection);
         setTitle("");
         setDeck("");
-        setAuthorId(viewer.id);
         setTags("");
         setRepoLabel("");
         setTalkDate("");
@@ -651,22 +754,12 @@ export default function ArticleComposer({
             <div className={s.twoCol}>
               <div>
                 <div className={s.fieldLabel}>작성자</div>
-                {canPickAuthor ? (
-                  <select
-                    className={s.select}
-                    value={authorId}
-                    onChange={(e) => setAuthorId(e.target.value)}
-                  >
-                    {authorOptions.map((m) => (
-                      <option key={m.id} value={m.id}>
-                        {m.name}
-                        {m.role === "unit_lead" ? " (Unit 장)" : ""}
-                      </option>
-                    ))}
-                  </select>
-                ) : (
-                  <input className={s.textInput} value={authorName} readOnly disabled />
-                )}
+                <input className={s.textInput} value={authorName} readOnly disabled />
+                <div className={s.fieldHint}>
+                  {mode === "edit"
+                    ? "작성자는 바뀌지 않습니다"
+                    : "본인 이름으로만 등록됩니다"}
+                </div>
               </div>
               <div>
                 <div className={s.fieldLabel}>태그 · 쉼표로 구분</div>
@@ -861,7 +954,7 @@ export default function ArticleComposer({
           {/* -------- 블록 편집 -------- */}
           <div className={s.blockBar}>
             <span className={s.blockBarLabel}>블록 추가</span>
-            {(["text", "head", "quote"] as BlockType[]).map((t) => (
+            {BLOCK_TYPES.map((t) => (
               <button
                 key={t}
                 type="button"
@@ -875,24 +968,138 @@ export default function ArticleComposer({
           </div>
 
           <div className={s.blockList}>
-            {blocks.map((b, i) => (
+            {blocks.map((b, i) => {
+              /*
+               * BLOCK_STYLE[b.type] 을 그대로 인덱싱하면, 지금 번들이 모르는
+               * 종류가 담긴 글을 열었을 때(배포 스큐 — 새 번들이 저장한 표를
+               * 캐시된 옛 번들이 여는 경우) undefined.bg 로 편집 화면이 통째로
+               * 죽는다. 지면 렌더러는 기본 분기로 흘러가 살아남는데 여기만
+               * 크래시하므로 폴백을 둔다.
+               */
+              const badge = BLOCK_STYLE[b.type] ?? BLOCK_STYLE.text;
+              const isTable = b.type === "table";
+
+              return (
               <div key={i} className={s.block}>
                 <span
                   className={s.blockBadge}
-                  style={{
-                    background: BLOCK_STYLE[b.type].bg,
-                    color: BLOCK_STYLE[b.type].fg,
-                  }}
+                  style={{ background: badge.bg, color: badge.fg }}
                 >
-                  {BLOCK_LABEL[b.type]}
+                  {BLOCK_LABEL[b.type] ?? BLOCK_LABEL.text}
                 </span>
-                <textarea
-                  className={s.blockInput}
-                  rows={b.type === "text" ? 4 : 2}
-                  value={b.t}
-                  onChange={(e) => setBlockText(i, e.target.value)}
-                  placeholder="내용을 입력하세요"
-                />
+
+                <div className={s.blockMain}>
+                  {/* -------- 서식 툴바 -------- */}
+                  <div className={s.fmtBar}>
+                    <span className={s.fmtLabel}>정렬</span>
+                    {ALIGNS.map((a) => (
+                      <button
+                        key={a.v}
+                        type="button"
+                        className={`${s.fmtBtn} ${
+                          (b.align ?? "left") === a.v ? s.fmtBtnOn : ""
+                        }`}
+                        onClick={() => toggleBlockAttr(i, "align", a.v)}
+                      >
+                        {a.label}
+                      </button>
+                    ))}
+
+                    {!isTable && (
+                      <>
+                        <span className={s.fmtDivider} />
+                        <span className={s.fmtLabel}>크기</span>
+                        {SIZES.map((z) => (
+                          <button
+                            key={z.v}
+                            type="button"
+                            className={`${s.fmtBtn} ${
+                              (b.size ?? "md") === z.v ? s.fmtBtnOn : ""
+                            }`}
+                            onClick={() => toggleBlockAttr(i, "size", z.v)}
+                          >
+                            {z.label}
+                          </button>
+                        ))}
+
+                        <span className={s.fmtDivider} />
+                        <span className={s.fmtLabel}>색상</span>
+                        {COLORS.map((c) => (
+                          <button
+                            key={c.v}
+                            type="button"
+                            title={c.label}
+                            aria-label={`글자 색 ${c.label}`}
+                            aria-pressed={(b.color ?? "default") === c.v}
+                            className={`${s.swatch} ${
+                              (b.color ?? "default") === c.v ? s.swatchOn : ""
+                            }`}
+                            style={{ background: c.swatch }}
+                            onClick={() => toggleBlockAttr(i, "color", c.v)}
+                          />
+                        ))}
+                      </>
+                    )}
+                  </div>
+
+                  {/* -------- 내용 -------- */}
+                  {isTable ? (
+                    <div className={s.tableEditor}>
+                      <div className={s.tableGridScroll}>
+                        <table className={s.tableGrid}>
+                          <tbody>
+                            {(b.rows ?? []).map((row, r) => (
+                              <tr key={r}>
+                                {row.map((cell, c) => (
+                                  <td key={c}>
+                                    <input
+                                      className={`${s.cellInput} ${
+                                        r === 0 ? s.cellHead : ""
+                                      }`}
+                                      value={cell}
+                                      onChange={(e) => setCell(i, r, c, e.target.value)}
+                                      placeholder={r === 0 ? `머리글 ${c + 1}` : ""}
+                                    />
+                                  </td>
+                                ))}
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                      <div className={s.tableTools}>
+                        <span className={s.fmtLabel}>첫 행이 머리글입니다</span>
+                        <button type="button" className={s.fmtBtn} onClick={() => addRow(i)}>
+                          ＋ 행
+                        </button>
+                        <button type="button" className={s.fmtBtn} onClick={() => delRow(i)}>
+                          － 행
+                        </button>
+                        <button type="button" className={s.fmtBtn} onClick={() => addCol(i)}>
+                          ＋ 열
+                        </button>
+                        <button type="button" className={s.fmtBtn} onClick={() => delCol(i)}>
+                          － 열
+                        </button>
+                      </div>
+                      <input
+                        className={s.textInput}
+                        value={b.t}
+                        onChange={(e) => setBlockText(i, e.target.value)}
+                        placeholder="표 설명 · 선택"
+                      />
+                    </div>
+                  ) : (
+                    <textarea
+                      className={s.blockInput}
+                      rows={b.type === "text" ? 4 : 2}
+                      value={b.t}
+                      onChange={(e) => setBlockText(i, e.target.value)}
+                      placeholder="내용을 입력하세요"
+                    />
+                  )}
+                </div>
+
                 <div className={s.blockActions}>
                   <button
                     type="button"
@@ -920,7 +1127,8 @@ export default function ArticleComposer({
                   </button>
                 </div>
               </div>
-            ))}
+              );
+            })}
           </div>
 
           {/* -------- 원문 소스 -------- */}
@@ -993,20 +1201,34 @@ export default function ArticleComposer({
                   <div className={s.pvEmpty}>본문을 입력하면 여기에 나타납니다</div>
                 ) : (
                   filledBlocks.map((b, i) => {
+                    /*
+                     * 이 창은 "실제 발행 화면" 이라고 적혀 있으므로 지면과 같은
+                     * 규칙으로 그린다. table 분기는 기본 분기보다 앞에 둔다 —
+                     * 뒤에 두면 표가 캡션만 든 문단으로 보인다. 표 마크업 자체는
+                     * 지면과 BlockTable 을 공유해서 두 쪽이 갈라지지 않게 한다.
+                     */
+                    const fmt = formatClass(b);
+
+                    if (b.type === "table")
+                      return (
+                        <div key={i} className={s.pvTable}>
+                          <BlockTable block={b} />
+                        </div>
+                      );
                     if (b.type === "head")
                       return (
-                        <div key={i} className={s.pvHead}>
+                        <div key={i} className={`${s.pvHead} ${fmt}`}>
                           {b.t}
                         </div>
                       );
                     if (b.type === "quote")
                       return (
-                        <div key={i} className={s.pvQuote}>
+                        <div key={i} className={`${s.pvQuote} ${fmt}`}>
                           {b.t}
                         </div>
                       );
                     return (
-                      <p key={i} className={s.pvText}>
+                      <p key={i} className={`${s.pvText} ${fmt}`}>
                         {b.t}
                       </p>
                     );

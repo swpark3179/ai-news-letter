@@ -163,7 +163,7 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 | `LLM_PROVIDER` | `openai` | 관리자 화면에서 **트렌드** 수집을 돌릴 때. 비우면 키가 있는 쪽을 자동 선택 |
 | `GEMINI_API_KEY` | — | 같음 (https://aistudio.google.com/apikey) |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | 모델 교체 시 |
-| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-5-mini` | 정기 실행·관리자 실행이 쓰는 기본 제공자 |
+| `OPENAI_API_KEY` / `OPENAI_MODEL` | — / `gpt-5.6-luna` | 정기 실행·관리자 실행이 쓰는 기본 제공자 |
 | `LLM_MIN_CALL_INTERVAL_MS` | gemini 7000 / openai 500 | 429 가 나면 올림 |
 | `TREND_MAX_NEW` | `30` | 관리자 버튼 1회당 신규 상한. Vercel 에서는 **5~10 권장** (→ 7.1) |
 | `HN_MIN_SCORE` | `150` | 선별 기준 점수 |
