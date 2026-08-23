@@ -180,7 +180,7 @@ export default async function AdminDashboardPage() {
         sourceStats={sourceStats}
         llmLabel={`${llmEnv.provider} / ${
           llmEnv.provider === "openai"
-            ? process.env.OPENAI_MODEL ?? "gpt-5-mini"
+            ? process.env.OPENAI_MODEL ?? "gpt-5.6-luna"
             : process.env.GEMINI_MODEL ?? "gemini-2.5-flash"
         }`}
       />

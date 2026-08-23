@@ -90,7 +90,7 @@ create table if not exists public.trend_items (
 comment on table  public.trend_items                is 'GitHub Trending · HN · arXiv · 긱뉴스를 AI 가 한국어 기사로 요약한 결과. PK = 원본 URL.';
 comment on column public.trend_items.source_variant is 'github 은 daily/weekly/monthly, arxiv 는 카테고리';
 comment on column public.trend_items.collected_date is '퍼온 날짜(KST). 원문 작성일이 불명확해 이 값으로 조회한다.';
-comment on column public.trend_items.body           is '블록 배열 [{type:text|head|quote, t}]';
+comment on column public.trend_items.body           is '블록 배열 [{type:text|head|quote|table, t, align?, size?, color?, rows?}]';
 
 -- ---------------------------------------------------------------------------
 -- articles : 유닛원이 직접 쓰는 글 (위클리 리뷰 / 심층 분석)
@@ -128,7 +128,7 @@ create table if not exists public.articles (
 );
 
 comment on table  public.articles         is '유닛원 작성 글. section=review(위클리 리뷰) | deep(심층 분석)';
-comment on column public.articles.body    is '블록 배열 [{type:text|head|quote, t}]';
+comment on column public.articles.body    is '블록 배열 [{type:text|head|quote|table, t, align?, size?, color?, rows?}]';
 comment on column public.articles.repo_label is '위클리 리뷰 카드 상단의 저장소/출처 라벨';
 
 -- ---------------------------------------------------------------------------

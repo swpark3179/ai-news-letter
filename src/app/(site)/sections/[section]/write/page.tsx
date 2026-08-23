@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import ArticleComposer from "@/components/compose/ArticleComposer";
 import { SECTION_MAP } from "@/lib/domain";
 import { getSessionUser } from "@/lib/auth/current-user";
-import { getMyDraft, getUnitMembers } from "@/lib/data/content";
+import { getMyDraft } from "@/lib/data/content";
 import { getArticleAttachment } from "@/lib/data/ops";
 import type { WritableSection } from "@/types/db";
 
@@ -38,10 +38,7 @@ export default async function WritePage({ params }: Props) {
   const user = await getSessionUser();
   if (!user) redirect(`/login?next=/sections/${key}/write`);
 
-  const [draft, members] = await Promise.all([
-    getMyDraft(user.id, key),
-    user.isAdmin ? getUnitMembers() : Promise.resolve([]),
-  ]);
+  const draft = await getMyDraft(user.id, key);
 
   const attachment = draft ? await getArticleAttachment(draft.id) : null;
 
@@ -51,8 +48,6 @@ export default async function WritePage({ params }: Props) {
       viewer={user}
       initialSection={key}
       initial={draft}
-      canPickAuthor={user.isAdmin}
-      members={members.map((m) => ({ id: m.id, name: m.name, role: m.role }))}
       attachedFileName={attachment?.file_name ?? null}
     />
   );

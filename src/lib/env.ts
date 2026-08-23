@@ -131,7 +131,7 @@ export const llmEnv = {
     return requireServerEnv("OPENAI_API_KEY");
   },
   get openaiModel() {
-    return optionalEnv("OPENAI_MODEL", "gpt-5-mini");
+    return optionalEnv("OPENAI_MODEL", "gpt-5.6-luna");
   },
   /**
    * Gemini 무료 티어는 gemini-2.5-flash 기준 10 RPM 이다.

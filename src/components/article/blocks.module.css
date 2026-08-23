@@ -1,0 +1,113 @@
+/*
+ * 본문 블록 서식 — 지면(article.module.css)과 작성 화면 미리보기
+ * (compose.module.css)가 함께 import 한다.
+ *
+ * 두 문맥의 기본 타이포그래피가 다르므로(지면 16.5px / 미리보기 13px 대) 크기는
+ * px 이 아니라 em 으로 잡는다. 그래야 어느 쪽에 붙어도 그 문맥의 기본 크기에
+ * 상대적으로 커지고 작아진다.
+ *
+ * 색상은 tokens.css 의 계열을 그대로 쓴다. 새 색을 만들지 않는다.
+ */
+
+/* --- 정렬 ---------------------------------------------------------------- */
+/* left 는 기본값이라 클래스를 붙이지 않는다 (lib/blocks.ts 참고). */
+
+.alignCenter {
+  text-align: center;
+}
+
+.alignRight {
+  text-align: right;
+}
+
+/* --- 크기 ---------------------------------------------------------------- */
+/* md 는 기본값이라 클래스를 붙이지 않지만, 작성 화면 버튼 상태 표시용으로 둔다. */
+
+.sizeSm {
+  font-size: 0.86em;
+}
+
+.sizeMd {
+  font-size: 1em;
+}
+
+.sizeLg {
+  font-size: 1.22em;
+}
+
+/* --- 색상 --------------------------------------------------------------- */
+/* default 는 클래스를 붙이지 않아 각 블록 타입의 원래 색이 유지된다. */
+
+.colorDefault {
+  color: inherit;
+}
+
+.colorPurple {
+  color: var(--purple-700);
+}
+
+.colorBlue {
+  color: var(--blue-700);
+}
+
+.colorGreen {
+  color: var(--green-700);
+}
+
+.colorRed {
+  color: var(--red-700);
+}
+
+.colorYellow {
+  color: var(--yellow-700);
+}
+
+.colorGray {
+  color: var(--gray-500);
+}
+
+/* --- 표 ----------------------------------------------------------------- */
+
+/*
+ * 좁은 화면에서 표만 가로로 흐르게 한다. 이 래퍼가 없으면 열이 많은 표가
+ * 본문 폭을 밀어내 페이지 전체에 가로 스크롤이 생긴다.
+ */
+.tableWrap {
+  margin: 22px 0;
+  overflow-x: auto;
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  font: 400 15px/1.6 var(--font-sans);
+  color: var(--gray-800);
+}
+
+.table th,
+.table td {
+  padding: 9px 12px;
+  border: 1px solid var(--gray-200);
+  text-align: left;
+  vertical-align: top;
+  word-break: break-word;
+}
+
+.table th {
+  background: var(--gray-50);
+  font-weight: 700;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.table tbody tr:nth-child(even) td {
+  background: var(--gray-25);
+}
+
+.caption {
+  margin-top: 8px;
+  font: 400 13px/1.5 var(--font-sans);
+  color: var(--gray-500);
+  text-align: left;
+  caption-side: bottom;
+}

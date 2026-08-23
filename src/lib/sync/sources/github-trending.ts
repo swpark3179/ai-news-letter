@@ -94,10 +94,14 @@ export async function fetchAllTrending(
 /**
  * 기사 작성용 컨텍스트. README 앞부분을 가져온다.
  * 기본 브랜치 이름을 몰라도 되도록 HEAD 를 쓴다. 실패하면 설명만으로 쓴다.
+ *
+ * 본문을 소제목으로 구획된 5~8블록으로 쓰게 한 뒤로 4000자로는 재료가 모자라
+ * 8000자로 올렸다. 입력 토큰은 배치당 4천 자 × 5건만큼 늘지만 출력 품질 쪽이
+ * 남는 거래다.
  */
 export async function fetchRepoContext(
   repo: TrendingRepo,
-  maxChars = 4000,
+  maxChars = 8000,
 ): Promise<string> {
   const parts = [
     `저장소: ${repo.fullName}`,
