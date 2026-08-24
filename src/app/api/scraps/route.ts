@@ -23,7 +23,7 @@ const bodySchema = z.object({
 });
 
 export async function POST(req: Request) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(req);
   if (!user) {
     return NextResponse.json(
       { error: "보관은 로그인 후 사용할 수 있습니다." },

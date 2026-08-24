@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
+import { devAuthEnv } from "@/lib/env";
 import {
   AUTH_FAILURES,
   AUTH_STEPS,
@@ -37,6 +38,18 @@ interface Props {
   /** ?fail=CODE 로 강제한 실패 시나리오 (목업 전용) */
   forcedFailure: SsoFailureCode | null;
 }
+
+/**
+ * 사번 폴백과 게스트 열람을 화면에 내보일지.
+ *
+ * 최종 방침은 「사내 SSO 를 통과하지 못하면 일반 사용을 제공하지 않는다」다.
+ * 두 경로는 서버(`/api/auth/signin` · `/api/auth/guest`)에서 이미 403 으로
+ * 막혀 있고, 여기서는 실 모드에서 눌러 볼 수 없게 감추기만 한다.
+ *
+ * `isMockSso` 가 아니라 이 값을 쓰는 이유: NEXT_PUBLIC_SSO_MODE 의 기본값이
+ * mock 이라 목업 모드로 올라간 운영 배포에서도 isMockSso 는 true 다.
+ */
+const showFallbacks = devAuthEnv.mockShortcuts;
 
 export default function LoginClient({ next, forcedFailure }: Props) {
   const router = useRouter();
@@ -164,6 +177,7 @@ export default function LoginClient({ next, forcedFailure }: Props) {
   }
 
   function goManual() {
+    if (!showFallbacks) return;
     abortRef.current?.abort();
     attemptRef.current++;
     setError(null);
@@ -232,9 +246,15 @@ export default function LoginClient({ next, forcedFailure }: Props) {
             <span className={s.footHint}>
               네트워크 상황에 따라 최대 30초까지 걸릴 수 있습니다
             </span>
-            <button type="button" className={`${s.linkPurple} ${s.pushRight}`} onClick={goManual}>
-              사번으로 로그인
-            </button>
+            {showFallbacks && (
+              <button
+                type="button"
+                className={`${s.linkPurple} ${s.pushRight}`}
+                onClick={goManual}
+              >
+                사번으로 로그인
+              </button>
+            )}
           </div>
         </div>
       )}
@@ -298,20 +318,28 @@ export default function LoginClient({ next, forcedFailure }: Props) {
             <button type="button" className={s.btnPrimary} onClick={() => void runSso()}>
               SSO 다시 시도
             </button>
-            <button type="button" className={s.btnGhost} onClick={goManual}>
-              사번으로 로그인
-            </button>
-            <button
-              type="button"
-              className={`${s.linkPurple} ${s.pushRight}`}
-              onClick={() => void continueAsGuest()}
-            >
-              뉴스레터로 이동 →
-            </button>
+            {showFallbacks && (
+              <>
+                <button type="button" className={s.btnGhost} onClick={goManual}>
+                  사번으로 로그인
+                </button>
+                <button
+                  type="button"
+                  className={`${s.linkPurple} ${s.pushRight}`}
+                  onClick={() => void continueAsGuest()}
+                >
+                  뉴스레터로 이동 →
+                </button>
+              </>
+            )}
           </div>
 
           <div className={s.failFoot}>
-            <span>로그인 없이 이동하면 공개 기사만 열람할 수 있습니다</span>
+            <span>
+              {showFallbacks
+                ? "로그인 없이 이동하면 공개 기사만 열람할 수 있습니다"
+                : "사내 SSO 인증을 통과해야 열람할 수 있습니다"}
+            </span>
             {isMockSso && !serverError && (
               <button
                 type="button"
@@ -378,6 +406,8 @@ export default function LoginClient({ next, forcedFailure }: Props) {
               뉴스레터로 이동 →
             </button>
           </div>
+
+          {/* phase === "manual" 은 showFallbacks 일 때만 도달한다 (goManual 참고) */}
 
           {isMockSso && (
             <div className={s.mockBadge}>

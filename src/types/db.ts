@@ -245,6 +245,53 @@ export interface AttachmentRow {
 }
 
 // ---------------------------------------------------------------------------
+// 모바일 소셜 로그인 (0010_google_identities.sql · 0011_apple_identities.sql)
+// ---------------------------------------------------------------------------
+
+/** 모바일 앱이 쓰는 소셜 로그인 수단. 표 이름과 열 이름이 이 값으로 갈린다. */
+export type SocialProvider = "google" | "apple";
+
+export interface MemberGoogleIdentityRow {
+  /** OpenID Connect sub. 이메일이 바뀌어도 유지되는 불변 식별자 */
+  google_sub: string;
+  member_id: string;
+  google_email: string;
+  email_verified: boolean;
+  /** Workspace 도메인(hd 클레임). 개인 Gmail 은 null */
+  hosted_domain: string | null;
+  display_name: string | null;
+  picture_url: string | null;
+  linked_at: string;
+  last_login_at: string | null;
+}
+
+export interface MemberAppleIdentityRow {
+  /** Apple ID 토큰의 sub. 개발자 팀 단위로 고유하다 */
+  apple_sub: string;
+  member_id: string;
+  /** 「이메일 가리기」면 릴레이 주소이고, 재로그인 때 빠져 올 수도 있다 */
+  apple_email: string | null;
+  email_verified: boolean;
+  is_private_email: boolean;
+  /** Apple 이 최초 인증에서 한 번만 주는 이름 */
+  display_name: string | null;
+  linked_at: string;
+  last_login_at: string | null;
+}
+
+export interface MemberRefreshTokenRow {
+  id: string;
+  member_id: string;
+  /** 원문이 아니라 sha256 해시 */
+  token_hash: string;
+  device_label: string | null;
+  created_at: string;
+  expires_at: string;
+  revoked_at: string | null;
+  last_used_at: string | null;
+}
+
+// ---------------------------------------------------------------------------
 // 조인 결과 (화면에서 쓰는 형태)
 // ---------------------------------------------------------------------------
 

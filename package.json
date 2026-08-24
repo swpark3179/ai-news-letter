@@ -16,6 +16,7 @@
     "@google/genai": "^2.18.0",
     "@supabase/supabase-js": "^2.112.3",
     "cheerio": "^1.2.0",
+    "google-auth-library": "^11.0.2",
     "jose": "^6.2.9",
     "next": "16.3.1",
     "openai": "^7.5.0",

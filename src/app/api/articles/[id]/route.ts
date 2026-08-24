@@ -13,12 +13,16 @@ export const runtime = "nodejs";
  *
  * 세션 쿠키는 sameSite=lax 라 크로스 사이트에서 이 DELETE 를 부를 수 없다.
  * (sessionCookieOptions 참고 — 별도 CSRF 토큰을 두지 않은 이유다.)
+ *
+ * 모바일 앱의 Bearer 토큰도 이 근거를 깨지 않는다 — 브라우저는 Authorization
+ * 헤더를 스스로 붙이지 않기 때문이다. 단 액세스 토큰을 헤더 외의 경로(쿠키,
+ * 쿼리스트링)로도 받기 시작하면 그 순간 무너진다 (session.ts 의 bearerToken 참고).
  */
 export async function DELETE(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ id: string }> },
 ) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(req);
   if (!user) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }

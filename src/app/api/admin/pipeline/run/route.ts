@@ -1,6 +1,7 @@
 import { NextResponse, after } from "next/server";
 import { z } from "zod";
 import { getSessionUser } from "@/lib/auth/current-user";
+import { verifyAdmin } from "@/lib/auth/permissions";
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { syncGeekNews } from "@/lib/sync/geeknews";
 import { syncTrend } from "@/lib/sync/trend";
@@ -29,8 +30,12 @@ const bodySchema = z.object({
  * 즉시 확인용으로 쓴다. 한도에 걸리면 sync_runs 는 running 상태로 남는다.
  */
 export async function POST(req: Request) {
-  const user = await getSessionUser();
-  if (!user?.isAdmin) {
+  const user = await getSessionUser(req);
+  // JWT 의 isAdmin 은 낙관적 판정이다. 이 버튼은 LLM 비용이 드는 쓰기 동작이라
+  // members.is_admin 을 DB 에서 다시 확인한다 (permissions.ts 의 규칙).
+  // 앱의 액세스 토큰도 같은 경로로 들어오므로 유효 기간(8시간) 동안 권한 회수가
+  // 반영되지 않는 창을 여기서 닫는다.
+  if (!user || !(await verifyAdmin(user))) {
     return NextResponse.json({ error: "관리자만 실행할 수 있습니다." }, { status: 403 });
   }
 

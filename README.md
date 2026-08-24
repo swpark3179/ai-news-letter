@@ -3,7 +3,12 @@
 Samsung SDS AI Unit 사내 일간 뉴스레터. Next.js 16 (App Router) + Supabase.
 
 claude.ai/design 프로젝트 `AI 뉴스레터.dc.html` 를 웹서비스와 관리자 페이지로
-구현한 것입니다. (모바일 앱은 이번 범위에서 제외)
+구현한 것입니다.
+
+모바일 앱은 별도 저장소([`ai-news-letter-mobile`](https://github.com/swpark3179/ai-news-letter-mobile),
+Flutter)에 있고, **로그인만 이 서버의 API 를 씁니다** — 사내 SSO 는 PC 트레이
+모듈에 붙는 방식이라 모바일에서 쓸 수 없어 Google · Apple OAuth2 로 들어옵니다
+([docs/MOBILE_OAUTH2.md](docs/MOBILE_OAUTH2.md)).
 
 ---
 
@@ -34,7 +39,13 @@ npm run sync:trend -- --limit=5      # 5건만 기사화해 확인
 npm run dev                          # http://localhost:3000
 ```
 
-로그인은 목업입니다. `/login` 에 들어가면 2~3초 뒤 자동으로 통과합니다.
+로그인은 목업입니다(`NEXT_PUBLIC_SSO_MODE=mock`, 기본값). 개발 서버에서는
+`/` 로 바로 들어가면 로그인 화면을 거치지 않고 목업 사용자로 세션이 만들어집니다.
+로그인 화면 자체를 보려면 `/login?force=1`, 실패 화면은 `/login?fail=SSO_TIMEOUT_30S`.
+
+목업 전용 우회 경로(무로그인 자동 세션 · 사번+비밀번호 폴백 · 게스트 열람)는
+**운영 빌드에서 모드와 무관하게 닫힙니다.** 최종 방침은 「사내 SSO 를 통과하지
+못하면 일반 사용을 제공하지 않는다」입니다.
 
 ---
 
@@ -42,7 +53,7 @@ npm run dev                          # http://localhost:3000
 
 | 경로 | 내용 |
 |---|---|
-| `/login` | SSO 4단계 진행 · 실패 3종 · 사번 로그인 · 게스트 |
+| `/login` | SSO 4단계 진행 · 실패 3종 (사번 로그인·게스트는 목업 모드에서만) |
 | `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바, 심층 분석, 위클리 리뷰 |
 | `/sections/[geek\|trend\|review\|deep]` | 카테고리 목록 (트렌드는 출처 필터) |
 | `/articles/[id]` | 유닛원 기사 상세 (심층 분석은 토론 코멘트 포함) |
@@ -62,18 +73,20 @@ npm run dev                          # http://localhost:3000
 ```
 src/
   app/
-    (site)/            공개 화면 — 헤더 + 게스트 배너 레이아웃
+    (site)/            열람 화면 — 헤더 + 게스트 배너(목업 전용) 레이아웃
     admin/             관리자 (레이아웃에서 is_admin 재확인)
-    api/               auth · comments · articles · scraps · uploads · admin/pipeline
+    api/               auth · me · comments · articles · scraps · uploads · admin/pipeline
     tokens.css         디자인 토큰 (claude.ai/design 원본을 그대로 이식)
   components/          화면별 컴포넌트 + 같은 폴더의 .module.css
   lib/
     auth/sso/          ★ 사내 SSO 연동 자리 (client.ts / decode.ts)
+    auth/*-identity.ts 모바일 OAuth2 (social · google · apple)
+    auth/mobile-session.ts  앱 액세스/리프레시 토큰
     data/              읽기 쿼리 (content · ops · settings · scraps)
     llm/               Gemini · OpenAI 공통 인터페이스
     sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
     supabase/          service_role 클라이언트
-  proxy.ts             경로별 접근 제어
+  proxy.ts             경로별 접근 제어 (쿠키 · Bearer)
 scripts/sync/          CLI 진입점 (tsx)
 supabase/migrations/   스키마 SQL 9개
 .github/workflows/     동기화 워크플로 3개
@@ -154,6 +167,7 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 - [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) — Vercel 배포 절차 · 플랫폼 한도 · 공개 전 점검
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
 - [docs/SSO_INTEGRATION.md](docs/SSO_INTEGRATION.md) — 사내 SSO 실구현 인계
+- [docs/MOBILE_OAUTH2.md](docs/MOBILE_OAUTH2.md) — 모바일 앱 OAuth2 로그인 (Google · Apple)
 
 ---
 
