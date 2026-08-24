@@ -28,7 +28,7 @@ const bodySchema = z.object({
  * (전송 구간 이중 보호가 목적이고, 저장 시점 암호화는 Storage 가 담당한다.)
  */
 export async function POST(req: Request) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(req);
   if (!user) {
     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
   }

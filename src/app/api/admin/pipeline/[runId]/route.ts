@@ -6,10 +6,10 @@ export const runtime = "nodejs";
 
 /** 관리자 화면이 파이프라인 진행 상황을 폴링하는 엔드포인트. */
 export async function GET(
-  _req: Request,
+  req: Request,
   { params }: { params: Promise<{ runId: string }> },
 ) {
-  const user = await getSessionUser();
+  const user = await getSessionUser(req);
   if (!user?.isAdmin) {
     return NextResponse.json({ error: "권한이 없습니다." }, { status: 403 });
   }

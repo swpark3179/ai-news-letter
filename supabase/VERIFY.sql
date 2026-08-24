@@ -4,9 +4,10 @@
 -- 마지막 SELECT 의 결과만 표시되므로, 한 블록씩 끊어서 실행하는 편이 편합니다.
 -- =============================================================================
 
--- ① 테이블 13개가 모두 만들어졌는가
+-- ① 테이블 16개가 모두 만들어졌는가
 --    기대: app_settings, article_sources, articles, attachments, comments,
---          geek_news, meeting_attendees, meetings, members, rotations,
+--          geek_news, meeting_attendees, meetings, member_apple_identities,
+--          member_google_identities, member_refresh_tokens, members, rotations,
 --          scraps, sync_runs, trend_items
 select table_name
   from information_schema.tables
@@ -15,7 +16,7 @@ select table_name
  order by table_name;
 
 
--- ② RLS 가 13개 테이블 전부 켜져 있는가 (rowsecurity 가 모두 true 여야 함)
+-- ② RLS 가 16개 테이블 전부 켜져 있는가 (rowsecurity 가 모두 true 여야 함)
 select tablename, rowsecurity
   from pg_tables
  where schemaname = 'public'
@@ -29,7 +30,8 @@ select schemaname, tablename, policyname
  where schemaname = 'public';
 
 
--- ④ 인덱스가 만들어졌는가 (16개 내외 — scraps 인덱스 2개 포함)
+-- ④ 인덱스가 만들어졌는가 (21개 내외)
+--    scraps 2개 + 모바일 로그인 6개(0010 의 4개 · 0011 의 2개) 포함
 select tablename, indexname
   from pg_indexes
  where schemaname = 'public'

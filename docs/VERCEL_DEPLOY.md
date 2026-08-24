@@ -37,7 +37,7 @@
 
 | 항목 | 확인 |
 |---|---|
-| Supabase 프로젝트 + 마이그레이션 9개 적용 | `supabase/VERIFY.sql` 통과 |
+| Supabase 프로젝트 + 마이그레이션 11개 적용 | `supabase/VERIFY.sql` 통과 |
 | Storage 버킷 `newsletter` 생성 | Supabase → Storage |
 | `SUPABASE_URL` · `service_role` 키 확보 | Project Settings → API |
 | 로컬에서 `npm run dev` 가 뜨고 화면이 보임 | http://localhost:3000 |
@@ -172,6 +172,19 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 
 LLM 키는 **관리자 화면의 수동 실행 버튼을 쓸 때만** 필요합니다. 정기 수집은
 GitHub Actions 가 자기 Secrets 로 돌리므로 Vercel 에 없어도 됩니다.
+
+### 모바일 앱 로그인 (앱을 붙일 때만)
+
+| 이름 | 기본값 | 언제 필요한가 |
+|---|---|---|
+| `GOOGLE_WEB_CLIENT_ID` | — | 앱의 Google 로그인. 앱의 `GOOGLE_SERVER_CLIENT_ID` 와 같아야 한다 |
+| `GOOGLE_IOS_CLIENT_ID` / `GOOGLE_ANDROID_CLIENT_ID` | — | 설정이 어긋난 빌드 대비 (선택) |
+| `ALLOWED_HOSTED_DOMAINS` | — | 비우면 도메인 제한 없음. Google 에만 걸린다 |
+| `APPLE_CLIENT_IDS` | — | 앱의 Apple 로그인. iOS=번들 ID · Android=Services ID |
+| `APPLE_ANDROID_PACKAGE` | `io.github.swpark3179.ainewsletter` | Android 콜백이 되돌릴 앱 |
+
+세 값이 비어 있으면 해당 엔드포인트만 500 을 돌려주고 웹은 영향을 받지 않습니다.
+자세한 내용은 [MOBILE_OAUTH2.md](MOBILE_OAUTH2.md).
 
 ### 넣을 때 주의할 것 4가지
 
@@ -330,15 +343,18 @@ Hobby 에서 `0 * * * *` 처럼 더 자주 도는 표현식은 **배포 자체�
 
 앱 자체는 `src/proxy.ts` 가 모든 경로에서 로그인을 요구하고,
 `src/app/layout.tsx` 가 `robots: noindex` 를 보냅니다.
-**그런데 지금 로그인은 목업입니다.**
+**그런데 `NEXT_PUBLIC_SSO_MODE=mock` 인 동안 로그인은 목업입니다.**
 
 - `/login` 에 들어가면 **2.4초 뒤 자동으로 관리자(`21084213` 박세원)로 로그인됩니다**
   (`src/lib/auth/sso/client.mock.ts` 의 `MOCK_USER`).
-- 사번 로그인은 **비밀번호를 검증하지 않습니다.** 처음 보는 사번은 구독자로 자동 생성됩니다.
-- 게스트 열람도 열려 있습니다.
 
 즉 **URL 을 아는 사람은 누구나 관리자로 들어올 수 있습니다.** 사내 실명·발표
 자료가 들어가는 서비스이므로 아래 중 하나를 반드시 적용하세요.
+
+> 목업 전용 우회 경로 세 개(사번+비밀번호 폴백 · 게스트 열람 · 무로그인 자동
+> 세션)는 **운영 빌드에서 모드와 무관하게 닫힙니다** (`src/lib/env.ts` 의
+> `devAuthEnv`). 그래서 위 목록에서 빠졌습니다. 남은 구멍은 목업 SSO 자동
+> 로그인 하나이고, 그것을 막는 방법이 아래 표입니다.
 
 | 방법 | 필요 플랜 | 효과 |
 |---|---|---|
@@ -371,9 +387,13 @@ Hobby 에서 `0 * * * *` 처럼 더 자주 도는 표현식은 **배포 자체�
    mixed content 로 막습니다. 트레이 모듈이 `wss://` 를 제공해야 합니다.
 2. **`wss://127.0.0.1:포트` 는 인증서 문제가 남습니다.** 자체 서명 인증서면
    연결이 실패합니다. 사내 CA 가 서명한 인증서를 트레이 모듈이 써야 합니다.
-3. **`real` 모드에서 사번 폴백 로그인은 501 을 반환합니다**
-   (`src/app/api/auth/signin/route.ts` 가 아직 비어 있음).
-   트레이 모듈이 없는 기기에서는 로그인할 방법이 없어지므로 실전환 전에 채우세요.
+3. **`real` 모드에서는 사번 폴백과 게스트 열람이 403 입니다.**
+   방침이 「사내 SSO 를 통과하지 못하면 일반 사용을 제공하지 않는다」이기
+   때문입니다. 트레이 모듈이 없는 기기에서는 로그인할 방법이 없다는 뜻이므로,
+   전환 시점에 그 기기들을 어떻게 할지 먼저 정해야 합니다 — 사내 인증 API 를
+   붙여 `src/app/api/auth/signin/route.ts` 를 채우거나, 그 기기는 웹을 쓰지
+   않는 것으로 두거나(모바일이라면 앱의 OAuth2 경로가 있습니다 →
+   [MOBILE_OAUTH2.md](MOBILE_OAUTH2.md)).
 
 전환 절차와 채워야 할 코드는 [SSO_INTEGRATION.md](SSO_INTEGRATION.md) 에 있습니다.
 

@@ -1,3 +1,4 @@
+import { MOCK_USER } from "./mock-user";
 import {
   SsoError,
   type SsoClient,
@@ -18,14 +19,6 @@ import {
  *   /login?fail=SSO_TRAY_NOT_INSTALLED
  *   /login?fail=SSO_TIMEOUT_30S
  */
-
-/** 목업이 발급하는 사용자 — 0008_seed.sql 의 Unit 장과 사번을 맞춰 둔다. */
-export const MOCK_USER = {
-  empNo: "21084213",
-  name: "박세원",
-  email: "s-w.park@samsung.com",
-  dept: "AI Unit",
-};
 
 /** 단계별 소요 시간 (ms). 합계 약 2.4초. */
 const STEP_DELAYS = [420, 620, 780, 560];

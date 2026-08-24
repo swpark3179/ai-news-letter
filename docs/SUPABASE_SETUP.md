@@ -29,7 +29,7 @@ AI 뉴스레터가 쓰는 테이블 · 인덱스 · RLS · Storage 의 **참고 
 
 ### 방법 A — 대시보드 SQL Editor (가장 간단, 권장)
 
-**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 9개 마이그레이션이 순서대로 합쳐져
+**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 11개 마이그레이션이 순서대로 합쳐져
 있습니다. 대시보드 → **SQL Editor** → New query 에 **전체를 붙여넣고 한 번 Run**
 하면 끝입니다.
 
@@ -225,10 +225,10 @@ update public.members
 
 | # | 확인 | 기대 결과 |
 |---|---|---|
-| ① | 테이블 | 13개 |
-| ② | RLS | 13개 모두 `rowsecurity = true` |
+| ① | 테이블 | 16개 |
+| ② | RLS | 16개 모두 `rowsecurity = true` |
 | ③ | 정책 | **0건** (service_role 전용 구성이므로 정상) |
-| ④ | 인덱스 | 16개 내외 |
+| ④ | 인덱스 | 21개 내외 |
 | ⑤ | `trend_items.public_id` | `is_generated = ALWAYS` |
 | ⑥ | 유닛원 시드 | 5명 (유닛원 4 + 구독자 1) |
 | ⑦ | 발행 설정 | 5건 |

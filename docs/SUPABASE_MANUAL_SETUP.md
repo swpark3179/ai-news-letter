@@ -38,7 +38,7 @@ https://supabase.com/dashboard 에서 프로젝트를 선택합니다.
 
 ## 2단계 — 스키마 적용
 
-9개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 이
+11개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 이
 준비되어 있습니다.
 
 터미널에서 클립보드로 복사:
@@ -54,15 +54,17 @@ Get-Content supabase/ALL_MIGRATIONS.sql -Raw | Set-Clipboard
 ### 이 파일이 만드는 것
 
 ```
-테이블 13개
+테이블 16개
   members  app_settings                        구성원 · 발행설정
   geek_news  trend_items  articles             콘텐츠
   article_sources  comments                    기사 부속
   meetings  meeting_attendees  rotations       유닛 운영
   scraps  sync_runs  attachments               보관함 · 로그 · 업로드
+  member_google_identities                     모바일 앱 로그인 (0010)
+  member_apple_identities  member_refresh_tokens
 
-인덱스 14개 + updated_at 자동갱신 트리거 3개
-RLS 13개 테이블 전부 활성화 (정책은 의도적으로 0건)
+인덱스 21개 + updated_at 자동갱신 트리거 3개
+RLS 16개 테이블 전부 활성화 (정책은 의도적으로 0건)
 시드 — 유닛원 4명, 구독자 1명, 로테이션 8건, 발행설정 5건
 ```
 
@@ -83,7 +85,12 @@ supabase/migrations/0006_indexes.sql      인덱스 + updated_at 트리거
 supabase/migrations/0007_rls.sql          RLS 활성화
 supabase/migrations/0008_seed.sql         유닛원·로테이션·발행설정 시드
 supabase/migrations/0009_scraps.sql       보관함 조회 인덱스
+supabase/migrations/0010_google_identities.sql   모바일 Google 로그인 · 리프레시 토큰
+supabase/migrations/0011_apple_identities.sql    모바일 Apple 로그인
 ```
+
+0010·0011 은 모바일 앱 로그인용입니다 — 앱을 붙이지 않는다면 미뤄도 웹은
+그대로 동작합니다. 내용은 [`MOBILE_OAUTH2.md`](MOBILE_OAUTH2.md).
 
 > 스키마를 고칠 때는 `migrations/` 의 개별 파일을 고치고
 > `npm run sql:bundle` 로 `ALL_MIGRATIONS.sql` 을 다시 만드세요.
@@ -133,10 +140,10 @@ on conflict (id) do nothing;
 
 | # | 확인 | 기대값 |
 |---|---|---|
-| ① | 테이블 | **13개** |
-| ② | RLS | 13개 모두 `rowsecurity = true` |
+| ① | 테이블 | **16개** |
+| ② | RLS | 16개 모두 `rowsecurity = true` |
 | ③ | 정책 | **0건** ← 비어 있는 게 정상입니다 |
-| ④ | 인덱스 | 14개 내외 |
+| ④ | 인덱스 | 21개 내외 |
 | ⑤ | `trend_items.public_id` | `is_generated = ALWAYS` |
 | ⑥ | `members` | 5명 |
 | ⑦ | `app_settings` | 5건 |
@@ -251,9 +258,9 @@ select kind, provider, status, fetched_count, inserted_count, skipped_count, err
 ## 관련 파일
 
 ```
-supabase/ALL_MIGRATIONS.sql   9개 마이그레이션 통합본 — 붙여넣기용
+supabase/ALL_MIGRATIONS.sql   11개 마이그레이션 통합본 — 붙여넣기용
 supabase/VERIFY.sql           적용 확인 쿼리 9종
-supabase/migrations/          개별 마이그레이션 0001~0009
+supabase/migrations/          개별 마이그레이션 0001~0011
 scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 ```
 
@@ -265,8 +272,11 @@ scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 
 - 인덱스·FK·트리거·시드가 참조하는 컬럼이 모두 실제로 존재함
 - 괄호 141/141(주석·문자열 제외), 작은따옴표 짝수, `$$` 2개(짝수) 균형
-- RLS 13/13 테이블 적용, `create policy` 0건 (의도된 구성)
-- 실행 statement 89개 · 테이블 13개 · 인덱스 16개
+- RLS 16/16 테이블 적용, `create policy` 0건 (의도된 구성)
+- 테이블 16개 · 인덱스 21개 · 트리거 3개
+
+0010·0011 은 모바일 저장소에서 그대로 가져온 파일이라 위 정적 검증 범위
+바깥입니다 (그쪽에서 작성·검토된 것입니다).
 
 다만 **실제 Postgres 인스턴스에 실행해 본 것은 아닙니다**
 (작업 PC 에 psql·docker 가 없습니다).

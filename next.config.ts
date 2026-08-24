@@ -28,7 +28,8 @@ const nextConfig: NextConfig = {
   },
 
   // 서버 번들에만 들어가야 하는 패키지 (수집 스크립트와 공유하는 모듈들)
-  serverExternalPackages: ["cheerio", "undici"],
+  // google-auth-library 는 gcp-metadata 등 Node 전용 모듈을 조건부로 불러온다.
+  serverExternalPackages: ["cheerio", "undici", "google-auth-library"],
 };
 
 export default nextConfig;
