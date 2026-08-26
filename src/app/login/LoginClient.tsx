@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
-import { devAuthEnv } from "@/lib/env";
+import { devAuthEnv, ssoPublicEnv } from "@/lib/env";
 import {
   AUTH_FAILURES,
   AUTH_STEPS,
@@ -13,6 +13,7 @@ import {
   isMockSso,
   type SsoFailureCode,
 } from "@/lib/auth/sso";
+import { recordAttempt } from "@/lib/auth/sso/last-attempt";
 import { hhmm } from "@/lib/format";
 import s from "./login.module.css";
 
@@ -38,6 +39,8 @@ interface Props {
   next: string;
   /** ?fail=CODE 로 강제한 실패 시나리오 (목업 전용) */
   forcedFailure: SsoFailureCode | null;
+  /** 진단 화면 주소 (?token= 을 물려받는다) */
+  diagHref: string;
 }
 
 /**
@@ -52,7 +55,7 @@ interface Props {
  */
 const showFallbacks = devAuthEnv.mockShortcuts;
 
-export default function LoginClient({ next, forcedFailure }: Props) {
+export default function LoginClient({ next, forcedFailure, diagHref }: Props) {
   const router = useRouter();
 
   const [phase, setPhase] = useState<Phase>("running");
@@ -72,6 +75,8 @@ export default function LoginClient({ next, forcedFailure }: Props) {
 
   const abortRef = useRef<AbortController | null>(null);
   const attemptRef = useRef(0);
+  /** 시도 시작 시각 — 진단 기록의 경과 시간을 화면 상태와 무관하게 계산한다 */
+  const startedAtRef = useRef(0);
 
   // --- 세션 확정 후 이동 ---------------------------------------------------
   const goNext = useCallback(() => {
@@ -92,15 +97,22 @@ export default function LoginClient({ next, forcedFailure }: Props) {
     setError(null);
     setServerError(null);
 
+    // 진단 기록용 — setStep 은 비동기라 여기서 따로 센다.
+    startedAtRef.current = Date.now();
+    let reached = -1;
+    let traceId: string | null = null;
+
     try {
       const client = createSsoClient(forcedFailure);
       // 클라이언트는 0·1·2 만 낸다 — 트레이는 메시지를 한 번만 보낸다.
       const payload = await client.authenticate((i) => {
+        reached = i;
         if (attemptRef.current === attempt) setStep(i);
       }, ac.signal);
 
       // 4번째 단계(구독 정보 동기화)는 서버 왕복이라 여기서 켠다. 트레이가
       // 알려 줄 수 없는 단계를 클라이언트가 지어내지 않게 하려는 것이다.
+      reached = 3;
       if (attemptRef.current === attempt) setStep(3);
 
       const res = await fetch("/api/auth/sso", {
@@ -110,15 +122,23 @@ export default function LoginClient({ next, forcedFailure }: Props) {
         body: JSON.stringify(payload),
         signal: ac.signal,
       });
+      // 서버 로그와 잇는 끈. 실패 응답에도 실려 온다 (api/auth/sso 의 jsonWithTrace).
+      traceId = res.headers.get("x-sso-trace-id");
 
       if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        const j = (await res.json().catch(() => ({}))) as {
+          error?: string;
+          code?: string;
+          traceId?: string;
+        };
+        traceId = traceId ?? j.traceId ?? null;
         // 서버가 안내 카드가 있는 실패를 돌려주면(등록되지 않은 사용자 등)
         // 「서버 오류」가 아니라 그 카드를 보여 준다.
         if (isFailureCode(j.code)) throw new SsoError(j.code, j.error);
         throw new Error(j.error ?? "세션 발급에 실패했습니다.");
       }
       if (attemptRef.current !== attempt) return;
+      logAttempt("성공", reached, null, null, traceId);
       goNext();
     } catch (e) {
       if (attemptRef.current !== attempt) return;
@@ -130,14 +150,42 @@ export default function LoginClient({ next, forcedFailure }: Props) {
         const idx = AUTH_FAILURES.findIndex((f) => f.code === e.code);
         setFailIdx(idx >= 0 ? idx : 0);
         setServerError(null);
+        logAttempt("실패", reached, e.code, null, traceId);
       } else {
         // 인증 자체는 됐지만 서버가 세션을 못 만든 경우 (DB 연결 실패 등).
         // 트레이 안내를 띄우면 엉뚱한 곳을 보게 되므로 실제 원인을 그대로 보여 준다.
-        setServerError(
-          e instanceof Error ? e.message : "알 수 없는 오류가 발생했습니다.",
-        );
+        const msg = e instanceof Error ? e.message : "알 수 없는 오류가 발생했습니다.";
+        setServerError(msg);
+        logAttempt("실패", reached, null, msg, traceId);
       }
       setPhase("failed");
+    }
+
+    /**
+     * 이 시도를 진단 화면이 읽을 수 있게 남긴다 (sessionStorage 한 건).
+     *
+     * 화면을 옮기면 React 상태가 날아가므로, 실패 직후의 사실은 여기서만
+     * 붙잡을 수 있다 — /login/diag 의 0단계가 그대로 표시한다.
+     */
+    function logAttempt(
+      outcome: "성공" | "실패",
+      step: number,
+      failureCode: string | null,
+      serverError: string | null,
+      tid: string | null,
+    ) {
+      recordAttempt({
+        at: new Date().toISOString(),
+        mode: ssoPublicEnv.mode,
+        outcome,
+        step,
+        elapsedSec: Math.round((Date.now() - startedAtRef.current) / 1000),
+        failureCode,
+        serverError,
+        traceId: tid,
+        trayUrl: ssoPublicEnv.trayWsUrl,
+        appCode: ssoPublicEnv.trayAppCode,
+      });
     }
   }, [forcedFailure, goNext]);
 
@@ -350,6 +398,11 @@ export default function LoginClient({ next, forcedFailure }: Props) {
                 ? "로그인 없이 이동하면 공개 기사만 열람할 수 있습니다"
                 : "사내 SSO 인증을 통과해야 열람할 수 있습니다"}
             </span>
+            {/* 「설정 문제인가 로직 문제인가」를 여기서 바로 가를 수 있게 한다.
+                이 시도의 기록은 sessionStorage 에 남아 진단 0단계에 표시된다. */}
+            <a className={s.diagLink} href={diagHref}>
+              로그인 진단 →
+            </a>
             {isMockSso && !serverError && (
               <button
                 type="button"

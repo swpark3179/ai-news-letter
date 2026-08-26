@@ -47,9 +47,14 @@ export async function proxy(req: NextRequest) {
   // 로그인 화면: 이미 인증됐으면 1면으로 되돌린다.
   // 단 ?fail= · ?force= 가 붙어 있으면 그대로 보여 준다 — 목업 자동 세션이
   // 생긴 뒤에도 실패 화면을 확인할 수 있어야 한다.
+  //
+  // 되돌리는 것은 **로그인 화면 자체뿐**이다. /login/diag 는 세션이 있는 채로
+  // 봐야 하는 진단 화면이다 — 「로그인은 됐는데 그다음이 문제인가」를 가리는
+  // 절차가 곧 「로그인한 뒤 진단을 다시 실행한다」이기 때문이다 (docs/SSO_DEBUG.md).
   if (isPublic(pathname)) {
+    const isLoginScreen = pathname === "/login";
     const inspecting = searchParams.has("fail") || searchParams.has("force");
-    if (session && !inspecting) {
+    if (session && isLoginScreen && !inspecting) {
       return NextResponse.redirect(new URL("/", req.url));
     }
     return NextResponse.next();
