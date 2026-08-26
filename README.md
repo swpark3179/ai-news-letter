@@ -39,9 +39,13 @@ npm run sync:trend -- --limit=5      # 5건만 기사화해 확인
 npm run dev                          # http://localhost:3000
 ```
 
-로그인은 목업입니다(`NEXT_PUBLIC_SSO_MODE=mock`, 기본값). 개발 서버에서는
-`/` 로 바로 들어가면 로그인 화면을 거치지 않고 목업 사용자로 세션이 만들어집니다.
-로그인 화면 자체를 보려면 `/login?force=1`, 실패 화면은 `/login?fail=SSO_TIMEOUT_30S`.
+로그인 기본값은 목업입니다(`NEXT_PUBLIC_SSO_MODE=mock`). 실 모드(Knox 트레이
+`getknoxsso` → EPID 추출 → 등록사용자 대조) 경로도 이어져 있고, `SecuBase`
+복호화 규격 한 곳만 미확정입니다 — [docs/SSO_KNOX_PROTOCOL.md](docs/SSO_KNOX_PROTOCOL.md).
+
+개발 서버에서는 `/` 로 바로 들어가면 로그인 화면을 거치지 않고 목업 사용자로
+세션이 만들어집니다. 로그인 화면 자체를 보려면 `/login?force=1`, 실패 화면은
+`/login?fail=SSO_TIMEOUT_30S` (`?fail=` 로 실패 5종을 모두 볼 수 있습니다).
 
 목업 전용 우회 경로(무로그인 자동 세션 · 사번+비밀번호 폴백 · 게스트 열람)는
 **운영 빌드에서 모드와 무관하게 닫힙니다.** 최종 방침은 「사내 SSO 를 통과하지
@@ -53,7 +57,7 @@ npm run dev                          # http://localhost:3000
 
 | 경로 | 내용 |
 |---|---|
-| `/login` | SSO 4단계 진행 · 실패 3종 (사번 로그인·게스트는 목업 모드에서만) |
+| `/login` | SSO 4단계 진행 · 실패 5종 (사번 로그인·게스트는 목업 모드에서만) |
 | `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바, 심층 분석, 위클리 리뷰 |
 | `/sections/[geek\|trend\|review\|deep]` | 카테고리 목록 (트렌드는 출처 필터) |
 | `/articles/[id]` | 유닛원 기사 상세 (심층 분석은 토론 코멘트 포함) |
@@ -79,7 +83,8 @@ src/
     tokens.css         디자인 토큰 (claude.ai/design 원본을 그대로 이식)
   components/          화면별 컴포넌트 + 같은 폴더의 .module.css
   lib/
-    auth/sso/          ★ 사내 SSO 연동 자리 (client.ts / decode.ts)
+    auth/sso/          사내 SSO — 트레이 WebSocket · 응답 파싱 · 서버 디코딩
+                       (★ SecuBase 복호화만 미확정 → decode-knox.ts)
     auth/*-identity.ts 모바일 OAuth2 (social · google · apple)
     auth/mobile-session.ts  앱 액세스/리프레시 토큰
     data/              읽기 쿼리 (content · ops · settings · scraps)
@@ -88,7 +93,7 @@ src/
     supabase/          service_role 클라이언트
   proxy.ts             경로별 접근 제어 (쿠키 · Bearer)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 9개
+supabase/migrations/   스키마 SQL 12개
 .github/workflows/     동기화 워크플로 3개
 ```
 
@@ -167,6 +172,7 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 - [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) — Vercel 배포 절차 · 플랫폼 한도 · 공개 전 점검
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
 - [docs/SSO_INTEGRATION.md](docs/SSO_INTEGRATION.md) — 사내 SSO 실구현 인계
+- [docs/SSO_KNOX_PROTOCOL.md](docs/SSO_KNOX_PROTOCOL.md) — Knox 트레이 프로토콜 · 미확정 규격 질문 목록
 - [docs/MOBILE_OAUTH2.md](docs/MOBILE_OAUTH2.md) — 모바일 앱 OAuth2 로그인 (Google · Apple)
 
 ---

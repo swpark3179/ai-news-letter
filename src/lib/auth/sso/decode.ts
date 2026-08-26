@@ -1,76 +1,81 @@
 import "server-only";
 
-import { ssoPublicEnv, ssoServerEnv } from "@/lib/env";
-import type { DecodedUser } from "./types";
+import { ssoPublicEnv } from "@/lib/env";
+import { decodeKnoxPayload } from "./decode-knox";
+import { SsoDecodeError, type DecodedUser, type SsoTrayPayload } from "./types";
 
 /* ===========================================================================
- * ★ 실구현 자리 — 서버 측 SSO 페이로드 디코딩
+ * 서버 측 SSO 페이로드 디코딩 — 진입점
  * ===========================================================================
  *
- * 브라우저가 트레이 모듈에서 받아 온 `encoded` 문자열을 서버에서 해석해
- * 사용자 정보를 얻는다. 이 함수의 시그니처(입력 string → DecodedUser)는
- * 고정이며, 호출부(app/api/auth/sso/route.ts)는 수정할 필요가 없다.
+ * 브라우저가 트레이 모듈에서 받아 온 값을 서버에서 해석해 사용자 정보를 얻는다.
+ * 호출부(app/api/auth/sso/route.ts)는 이 함수 하나만 본다.
  *
- * 실구현에서 반드시 처리해야 할 것
- *   1. 복호화        — 알고리즘/모드/IV 규격. 키는 SSO_DECODE_KEY 환경변수
- *   2. 서명 검증     — 사내 인증서버가 서명했는지 (위조 페이로드 차단)
- *   3. 만료 확인     — issuedAt / expiresAt 이 현재 시각 기준 유효한지
- *   4. 대상 확인     — audience 가 이 애플리케이션인지
- *
- * 2~4번을 빠뜨리면 누구든 임의의 사번으로 로그인할 수 있게 되므로
- * 실운영 전환 시 체크리스트로 삼을 것.
+ * 실제 규격이 들어 있는 곳은 decode-knox.ts 다. 이 파일은 세 가지만 한다.
+ *   1. 모드와 페이로드 종류가 맞는지 교차 확인
+ *   2. 종류에 맞는 디코더 호출
+ *   3. 결과를 마지막 관문(assertDecodedUser)에 통과시킨다
  * ------------------------------------------------------------------------ */
 
-export class SsoDecodeError extends Error {
-  constructor(message: string) {
-    super(message);
-    this.name = "SsoDecodeError";
+/** route.ts 의 기존 import 경로를 유지한다. 정의는 types.ts 에 있다. */
+export { SsoDecodeError };
+
+export async function decodeSsoPayload(payload: SsoTrayPayload): Promise<DecodedUser> {
+  const real = ssoPublicEnv.mode === "real";
+
+  // 모드와 페이로드 종류가 어긋나면 즉시 거절한다.
+  //
+  // 이 검사가 없으면 실 모드 배포에 목업 페이로드(누구나 만들 수 있는
+  // base64 JSON)를 POST 해서 **임의의 EPID 로 세션을 받을 수 있다.** 종류를
+  // 태그로 갖고 다니는 이유가 여기에 있다 (types.ts 의 SsoTrayPayload).
+  if (real && payload.kind !== "knox") {
+    throw new SsoDecodeError("실 모드에서는 트레이 페이로드만 받습니다.");
   }
+  if (!real && payload.kind !== "mock") {
+    throw new SsoDecodeError("목업 모드에서는 목업 페이로드만 받습니다.");
+  }
+
+  const decoded =
+    payload.kind === "knox"
+      ? await decodeKnoxPayload(payload)
+      : await decodeMock(payload.encoded);
+
+  // 어떤 경로로 왔든 반드시 이 관문을 통과한다.
+  return assertDecodedUser(decoded);
 }
 
-export async function decodeSsoPayload(encoded: string): Promise<DecodedUser> {
-  if (!encoded || typeof encoded !== "string") {
-    throw new SsoDecodeError("페이로드가 비어 있습니다.");
-  }
+/**
+ * 마지막 관문 — 확인되지 않은 값이 세션·DB 까지 흘러가지 못하게 한다.
+ *
+ * 복호화 규격이 아직 없어도 여기서 할 수 있는 검사는 지금 다 해 둔다. 디코더가
+ * 무엇을 돌려주든(전략을 잘못 골라 쓰레기를 뽑았든) 이 함수를 통과해야 한다.
+ */
+function assertDecodedUser(u: DecodedUser): DecodedUser {
+  const epid = clean(u.epid);
+  const empNo = clean(u.empNo) || epid;
+  const name = clean(u.name);
 
-  if (ssoPublicEnv.mode === "real") {
-    return decodeReal(encoded);
-  }
-  return decodeMock(encoded);
+  if (!epid) throw new SsoDecodeError("EPID 를 추출하지 못했습니다.");
+  if (!name) throw new SsoDecodeError("이름을 추출하지 못했습니다.");
+
+  // 식별자에 허용할 문자 — DB 조회 키이자 로그에 남는 값이라 좁게 잡는다.
+  const ID = /^[A-Za-z0-9._@-]{1,64}$/;
+  if (!ID.test(epid)) throw new SsoDecodeError("EPID 형식이 올바르지 않습니다.");
+  if (!ID.test(empNo)) throw new SsoDecodeError("사번 형식이 올바르지 않습니다.");
+  if (name.length > 64) throw new SsoDecodeError("이름 길이가 규격을 벗어났습니다.");
+
+  return {
+    epid,
+    empNo,
+    name,
+    email: clean(u.email ?? "") || null,
+    dept: clean(u.dept ?? "") || null,
+  };
 }
 
-// ---------------------------------------------------------------------------
-// 실구현 (미완성 — 사내 규격 확정 후 채울 것)
-// ---------------------------------------------------------------------------
-
-async function decodeReal(encoded: string): Promise<DecodedUser> {
-  const key = ssoServerEnv.decodeKey;
-  if (!key) {
-    throw new SsoDecodeError(
-      "SSO_DECODE_KEY 가 설정되지 않았습니다. real 모드에서는 필수입니다.",
-    );
-  }
-
-  // TODO(사내연동): 아래 4단계를 실제 규격으로 구현
-  //
-  //   const raw   = Buffer.from(encoded, 'base64');
-  //   const iv    = raw.subarray(0, 12);
-  //   const tag   = raw.subarray(raw.length - 16);
-  //   const data  = raw.subarray(12, raw.length - 16);
-  //   const dec   = createDecipheriv('aes-256-gcm', keyBuf, iv);
-  //   dec.setAuthTag(tag);
-  //   const json  = JSON.parse(Buffer.concat([dec.update(data), dec.final()]).toString());
-  //
-  //   verifySignature(json);                       // 2. 서명 검증
-  //   if (json.exp * 1000 < Date.now()) throw ...;  // 3. 만료 확인
-  //   if (json.aud !== 'ai-newsletter') throw ...;  // 4. 대상 확인
-  //
-  //   return { empNo: json.sub, name: json.name, email: json.email, dept: json.dept };
-
-  void encoded;
-  throw new SsoDecodeError(
-    "실 SSO 디코딩이 아직 구현되지 않았습니다. src/lib/auth/sso/decode.ts 의 decodeReal() 을 채우세요.",
-  );
+/** 앞뒤 공백과 제어문자를 걷어낸다. 로그·DB 로 흘러가는 값이라 여기서 정리한다. */
+function clean(v: string | null | undefined): string {
+  return (v ?? "").replace(/[\u0000-\u001f\u007f]/g, "").trim();
 }
 
 // ---------------------------------------------------------------------------
@@ -78,6 +83,7 @@ async function decodeReal(encoded: string): Promise<DecodedUser> {
 // ---------------------------------------------------------------------------
 
 interface MockPayload {
+  epid?: string;
   empNo?: string;
   name?: string;
   email?: string | null;
@@ -97,12 +103,17 @@ async function decodeMock(encoded: string): Promise<DecodedUser> {
     throw new SsoDecodeError("목업 페이로드를 해석하지 못했습니다.");
   }
 
-  if (!parsed.empNo || !parsed.name) {
-    throw new SsoDecodeError("페이로드에 사번 또는 이름이 없습니다.");
+  if (!parsed.name) {
+    throw new SsoDecodeError("페이로드에 이름이 없습니다.");
   }
 
+  // 목업에서도 EPID 를 필수로 본다 — 실 경로와 같은 관문을 밟게 하려는 것이다.
+  const epid = String(parsed.epid ?? "");
+  if (!epid) throw new SsoDecodeError("페이로드에 EPID 가 없습니다.");
+
   return {
-    empNo: String(parsed.empNo),
+    epid,
+    empNo: String(parsed.empNo ?? epid),
     name: String(parsed.name),
     email: parsed.email ?? null,
     dept: parsed.dept ?? null,

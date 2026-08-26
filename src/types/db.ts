@@ -60,6 +60,8 @@ export type ScrapTargetType = "article" | "trend" | "geek";
 export interface MemberRow {
   id: string;
   emp_no: string;
+  /** 사내 SSO(Knox) 사원 식별자. 사번과는 다른 별도 ID. 0012_member_epid.sql */
+  epid: string | null;
   name: string;
   email: string | null;
   dept: string | null;

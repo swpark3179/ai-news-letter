@@ -1,7 +1,17 @@
 # 사내 SSO 연동 인계 문서
 
-로그인은 지금 **목업으로 동작**합니다. 화면·세션·권한 처리는 전부 완성되어 있고,
-실제 사내 규격이 들어갈 자리 두 곳만 비어 있습니다.
+로그인 기본값은 여전히 **목업**입니다(`NEXT_PUBLIC_SSO_MODE=mock`). 실 모드
+경로도 이제 다 이어져 있습니다 — 트레이 WebSocket 통신, 응답 파싱, 서버 디코딩,
+EPID 추출, 등록사용자 대조까지.
+
+남은 미지수는 **한 곳뿐**입니다: `SecuBase` 복호화 알고리즘. 그 파일을 받지
+못해 `decode-knox.ts` 가 「단순 인코딩」을 가정하고 있습니다 —
+[SSO_KNOX_PROTOCOL.md](SSO_KNOX_PROTOCOL.md) 에 아는 것/모르는 것과 담당자에게
+보낼 질문을 정리해 두었습니다.
+
+> ⚠ 그 가정은 **페이로드 위조를 막지 못합니다.** 그래서 운영 빌드에서 `real`
+> 모드는 `SSO_ALLOW_UNVERIFIED_PAYLOAD=1` 을 명시해야만 세션을 발급합니다.
+> 개발·스테이징에서는 연동 확인을 위해 열려 있습니다.
 
 ---
 
@@ -28,6 +38,8 @@ proxy 가 `/api/auth/mock-session` 으로 보내고, 그 라우트가 목업 사
 | `/login?fail=SSO_TRAY_NOT_RUNNING` | 트레이 모듈 미실행 실패 화면 |
 | `/login?fail=SSO_TRAY_NOT_INSTALLED` | 모듈 미설치 실패 화면 |
 | `/login?fail=SSO_TIMEOUT_30S` | 30초 타임아웃 실패 화면 |
+| `/login?fail=SSO_NOT_REGISTERED` | 등록되지 않은 사용자 화면 |
+| `/login?fail=SSO_CONFIG_MISSING` | 연동 설정 누락 화면 |
 
 실패 화면에서 **사번으로 로그인** → 아무 사번/비밀번호나 통과(목업),
 **뉴스레터로 이동 →** → 게스트 모드(공개 기사만, 코멘트·스크랩 차단).
@@ -42,17 +54,24 @@ proxy 가 `/api/auth/mock-session` 으로 보내고, 그 라우트가 목업 사
 ```
 브라우저                        Next 서버                     Supabase
    │
-   │ ① WebSocket
+   │ ① WebSocket (wss://localhost:29283)
    ├──────────────▶ PC 트레이 인증 모듈
-   │◀────────────── { encoded }        ← 인코딩된 페이로드
+   │   {"rqtype":"getknoxsso","token":"","data":"<앱코드>"}
+   │◀────────────── {"data":{"userInfo":"…","key":"…"}}
    │
-   │ ② POST /api/auth/sso { encoded }
-   ├──────────────────────────────▶ decodeSsoPayload(encoded)
-   │                                     │  복호화 · 서명검증 · 만료확인
+   │ ② POST /api/auth/sso { kind:"knox", userInfo, privateKey }
+   ├──────────────────────────────▶ decodeSsoPayload(payload)
+   │                                     │  모드/종류 교차확인 → 디코딩
    │                                     ▼
-   │                                 { empNo, name, email, dept }
+   │                                 { epid, empNo, name, email, dept }
+   │                                     │  ★ EPID 를 얻으면 성공
    │                                     │
-   │                                     ├──── members upsert ──────▶
+   │                                 resolveMemberFromSso
+   │                                     ├──── epid 조회 ───────────▶
+   │                                     ├──── 없으면 emp_no 조회 ──▶
+   │                                     │     (찾으면 epid 백필)
+   │                                     │
+   │                                 없거나 비활성이면 403 SSO_NOT_REGISTERED
    │                                     │
    │                                 jose 로 JWT 서명
    │◀──── Set-Cookie: ainl_session ──────┘
@@ -60,66 +79,81 @@ proxy 가 `/api/auth/mock-session` 으로 보내고, 그 라우트가 목업 사
    │ ③ 이후 요청 — proxy.ts 가 쿠키 검증
 ```
 
+목업 모드는 ①이 `MockSsoClient` 로 바뀌고 페이로드가
+`{ kind:"mock", encoded }` 인 것만 다릅니다. ② 이후는 완전히 같은 경로입니다.
+
 ---
 
-## 채워야 할 곳은 두 개뿐
+## 채워야 할 곳은 이제 한 곳
 
-### ① `src/lib/auth/sso/client.ts` — 브라우저 WebSocket 클라이언트
+### ★ `src/lib/auth/sso/decode-knox.ts` — SecuBase 복호화
 
-인터페이스는 확정되어 있습니다. 바꿀 것은 **메시지 규격**뿐입니다.
-
-```ts
-export interface SsoClient {
-  authenticate(
-    onProgress: (step: 0 | 1 | 2 | 3) => void,
-    signal: AbortSignal,
-  ): Promise<{ encoded: string }>;
-}
-```
-
-`TODO(사내연동)` 주석이 붙은 지점:
-
-| 지점 | 지금 값 | 확인할 것 |
-|---|---|---|
-| 접속 주소 | `NEXT_PUBLIC_SSO_TRAY_WS_URL` | 트레이 모듈의 로컬 포트 (`wss://127.0.0.1:xxxxx`) |
-| 핸드셰이크 | `{ type: 'auth-request', app: 'ai-newsletter', version: 1 }` | 실제 요청 메시지 규격 |
-| 응답 분기 | `account-verified` / `auth-result` / `auth-error` | 실제 메시지 타입명 |
-| 페이로드 필드 | `msg.encoded ?? msg.payload` | 실제 필드명 |
-
-`onProgress(i)` 는 화면의 체크리스트와 1:1로 대응합니다.
-
-| i | 라벨 | 호출 시점 |
-|---|---|---|
-| 0 | Tray 인증 모듈 연결 | WebSocket open |
-| 1 | SSO 토큰 요청 | 요청 메시지 전송 완료 |
-| 2 | 사내 계정 확인 | 서버가 계정 확인 응답을 보냄 |
-| 3 | 구독 정보 동기화 | 최종 페이로드 수신 직전 |
-
-에러는 `SsoError` 로 던지면 화면이 알아서 안내 문구를 고릅니다.
+`SecuBase.java` 를 받지 못해 「단순 인코딩」을 가정한 전략 테이블이 들어 있습니다.
+규격이 오면 **이 파일만** 고칩니다 — 시그니처는 고정입니다.
 
 ```ts
-throw new SsoError("SSO_TRAY_NOT_RUNNING");   // 연결 거부
-throw new SsoError("SSO_TRAY_NOT_INSTALLED"); // 모듈 없음
-throw new SsoError("SSO_TIMEOUT_30S");        // 30초 초과 (기본 타이머가 이미 처리)
+decodeKnoxPayload(payload: { userInfo, privateKey }) => Promise<DecodedUser>
 ```
 
-### ② `src/lib/auth/sso/decode.ts` — 서버 디코딩
+할 일은 세 가지입니다.
+
+1. `STRATEGIES` 배열을 진짜 `secuDecode` 하나로 바꾼다
+2. 서명·무결성 검증, 만료(`decodeTime` 계열이면), 대상(`aud`) 확인을 추가한다
+3. `ssoServerEnv.allowUnverifiedPayload` 게이트를 제거한다 (`env.ts` · `.env.local.example`)
+
+호출부(`decode.ts`)·라우트·화면은 손대지 않습니다. 아는 것/모르는 것과 담당자에게
+보낼 질문 목록은 [SSO_KNOX_PROTOCOL.md](SSO_KNOX_PROTOCOL.md) 에 있습니다.
+
+### 이미 이어진 것 — 참고용
+
+| 파일 | 하는 일 |
+|---|---|
+| `sso/tray-protocol.ts` | `getknoxsso` 요청 조립 · 응답 프레임 파싱 (DOM 비의존 순수 함수) |
+| `sso/client.ts` | `KnoxTraySsoClient` — 소켓 수명과 실패 분류 |
+| `sso/decode.ts` | 모드/종류 교차확인 → 디코더 호출 → `assertDecodedUser` 관문 |
+| `auth/current-user.ts` | `resolveMemberFromSso` — EPID 대조 · 사번 폴백 · EPID 백필 |
+| `api/auth/sso/route.ts` | 태그 유니온 zod · 403/401 분기 · 레이트리밋 |
+
+`onProgress(i)` 의 소유권이 갈렸습니다. **트레이는 메시지를 한 번만 보내므로**
+클라이언트는 0·1·2 만 내고, 3(구독 정보 동기화)은 서버 왕복이라 `LoginClient` 가
+`POST` 직전에 켭니다. 없는 단계를 지어내지 않으려는 것입니다.
+
+| i | 라벨 | 실제 시점 | 켜는 쪽 |
+|---|---|---|---|
+| 0 | Tray 인증 모듈 연결 | `ws.onopen` | client |
+| 1 | SSO 토큰 요청 | `ws.send()` 반환 후 | client |
+| 2 | 사내 계정 확인 | `userInfo`+`key` 프레임 수신 | client |
+| 3 | 구독 정보 동기화 | `POST /api/auth/sso` 직전 | LoginClient |
+
+에러는 `SsoError` 로 던지면 화면이 안내 문구를 고릅니다. 실패 코드 5종:
 
 ```ts
-export async function decodeSsoPayload(encoded: string): Promise<DecodedUser>
-// DecodedUser = { empNo, name, email?, dept? }
+"SSO_TRAY_NOT_RUNNING"    // 연결 거부 · 응답 전 끊김 · **인증서 불신도 여기** (구분 불가)
+"SSO_TRAY_NOT_INSTALLED"  // 모듈 없음
+"SSO_TIMEOUT_30S"         // 열린 뒤 30초 초과 (열리지도 못했으면 NOT_RUNNING)
+"SSO_NOT_REGISTERED"      // 서버가 403 으로 — 등록되지 않았거나 비활성
+"SSO_CONFIG_MISSING"      // 트레이 주소·앱코드 미설정 (배포 문제)
 ```
 
-`decodeReal()` 안에 주석으로 골격을 남겨 두었습니다. **네 가지를 모두** 처리해야
-합니다.
+뒤 두 개는 서버가 응답 본문의 `code` 로 돌려주고, `LoginClient` 의 `isFailureCode`
+분기가 「서버 오류」 대신 전용 안내 카드를 띄웁니다.
 
-1. **복호화** — 알고리즘·모드·IV 규격. 키는 `SSO_DECODE_KEY` 환경변수에서 읽습니다.
-2. **서명 검증** — 사내 인증서버가 서명했는지 확인. 위조 페이로드를 막습니다.
-3. **만료 확인** — `issuedAt` / `expiresAt` 이 현재 시각 기준 유효한지.
-4. **대상 확인** — `audience` 가 이 애플리케이션인지.
+### 등록사용자 대조 — 「EPID 로 비교」
 
-> **2~4번을 빠뜨리면 누구든 임의의 사번으로 로그인할 수 있습니다.**
-> 실운영 전환 체크리스트로 삼으세요.
+`resolveMemberFromSso` (`src/lib/auth/current-user.ts`) 가 담당합니다.
+
+1. **`epid` 로 조회** — 트레이가 주는 진짜 식별자. 사번이 바뀌어도 따라옵니다.
+2. **없으면 `emp_no` 로 조회** — EPID 를 아직 모르는 기존 계정(시드 5명 포함)을
+   흡수하는 폴백. 찾으면 그 행에 **EPID 를 채웁니다**(백필).
+3. 그래도 없으면 → `SSO_ALLOW_AUTO_CREATE` 가 꺼져 있으면 `SsoNotRegisteredError`
+4. `is_active === false` → 같은 예외지만 **다른 문구** (사용자가 할 일이 다릅니다)
+
+`0012_member_epid.sql` 이 **SQL 백필을 하지 않는 이유**가 여기 있습니다. EPID 는
+사번과 다른 체계라 `epid = emp_no` 로 미리 채우면 **틀린 값**이 `members_epid_key`
+유니크 인덱스를 선점하고, 정작 진짜 EPID 로 들어오는 사람이 막힙니다. 위 2번의
+런타임 백필이 그 자리를 대신합니다.
+
+`role`·`is_admin` 은 운영자가 관리하는 값이라 SSO 가 덮어쓰지 않습니다.
 
 ### (선택) `src/app/api/auth/signin/route.ts` — 사번 폴백 로그인
 
@@ -198,17 +232,29 @@ Apple 네이티브 로그인으로 받은 ID 토큰을 서버가 검증하고, �
 
 ```dotenv
 NEXT_PUBLIC_SSO_MODE=real
-NEXT_PUBLIC_SSO_TRAY_WS_URL=wss://127.0.0.1:<포트>
-SSO_DECODE_KEY=<복호화 키>
+NEXT_PUBLIC_SSO_TRAY_WS_URL=wss://localhost:29283
+NEXT_PUBLIC_SSO_TRAY_APP_CODE=<발급받은 코드>
+SSO_DECODE_KEY=<32바이트 키 (base64 권장)>
+SSO_ALLOW_AUTO_CREATE=false
 ```
+
+`NEXT_PUBLIC_` 값은 빌드에 박히므로 환경변수만 바꾸고는 반영되지 않습니다 —
+**재배포가 필요합니다.**
 
 전환 전 확인:
 
-- [ ] `client.ts` 의 메시지 규격을 실제 프로토콜로 교체했다
-- [ ] `decode.ts` 의 복호화 · 서명검증 · 만료확인 · 대상확인을 모두 구현했다
-- [ ] 사번 폴백을 열지 말지 정했다 (기본은 닫힘 — 「목업 전용 우회 경로」 참고)
-- [ ] `members` 의 사번을 실제 값으로 바꿨다 (시드는 임시값)
+- [ ] `supabase/migrations/0012_member_epid.sql` 을 적용했다 (`members.epid`)
+- [ ] 이 서비스용 **애플리케이션 코드**를 발급받았다 (`KCC60TRAY0109` 는 교육포털 것)
+- [ ] 트레이 인증서가 사용자 PC 에서 신뢰되는지 확인했다
+- [ ] `members` 에 실제 사용자를 등록했다 — **미등록자는 로그인할 수 없습니다**
 - [ ] `SESSION_SECRET` 을 운영용 임의값으로 지정했다
+- [ ] 사번 폴백을 열지 말지 정했다 (기본은 닫힘 — 「목업 전용 우회 경로」 참고)
+
+운영 배포 전 반드시:
+
+- [ ] **`decode-knox.ts` 에 실제 `SecuBase` 규격을 넣었다** — 넣기 전까지 운영
+      빌드는 `SSO_ALLOW_UNVERIFIED_PAYLOAD=1` 없이는 로그인을 거절합니다.
+      그 스위치를 켠 채 운영하는 것은 **페이로드 위조를 허용**하는 것입니다.
 
 ---
 
@@ -240,17 +286,24 @@ Supabase Auth 를 쓰지 않는 이유: 로그인 주체가 사내 SSO 라서 Su
 
 ```
 src/lib/env.ts        devAuthEnv — 목업 전용 경로의 게이트
+src/lib/rate-limit.ts 로그인 시도 레이트리밋 (best-effort · 인스턴스 메모리)
 src/lib/auth/
   session.ts          JWT 서명·검증 · bearerToken · getBearerUser (Edge 호환)
-  current-user.ts     세션 읽기(쿠키·Bearer), members upsert, isGuest 게이트
+  current-user.ts     세션 읽기(쿠키·Bearer) · resolveMemberFromSso(등록 대조)
+                      · upsertMemberFromSso(자동 가입) · isGuest 게이트
   sso/
-    types.ts          AUTH_STEPS · SsoError · DecodedUser
-    failures.ts       실패 3종의 안내 문구
-    client.ts         ★ 실구현 자리 — WebSocket
+    types.ts          AUTH_STEPS · SsoError · SsoDecodeError · SsoTrayPayload · DecodedUser
+    failures.ts       실패 5종의 안내 문구
+    tray-protocol.ts  getknoxsso 요청 조립 · 응답 프레임 파싱 (순수 함수)
+    client.ts         KnoxTraySsoClient — 트레이 WebSocket
     client.mock.ts    목업
     mock-user.ts      목업 사용자 (서버·브라우저 공용)
-    decode.ts         ★ 실구현 자리 — 서버 디코딩
+    decode.ts         디코딩 진입점 — 모드 교차확인 · 최종 검증 관문
+    decode-knox.ts    ★ 남은 실구현 자리 — SecuBase 복호화
     index.ts          mode 로 분기
+
+supabase/migrations/0012_member_epid.sql   members.epid + 부분 유니크 인덱스
+docs/SSO_KNOX_PROTOCOL.md                  프로토콜 규격 · 담당자 질문 목록
 
 src/app/login/        로그인 화면 (4단계 · 실패 · 사번 · 게스트)
 src/app/api/auth/     sso · signin · guest · signout · mock-session
