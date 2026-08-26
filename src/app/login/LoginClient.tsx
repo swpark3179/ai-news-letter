@@ -9,6 +9,7 @@ import {
   SsoError,
   createSsoClient,
   failureOf,
+  isFailureCode,
   isMockSso,
   type SsoFailureCode,
 } from "@/lib/auth/sso";
@@ -93,19 +94,28 @@ export default function LoginClient({ next, forcedFailure }: Props) {
 
     try {
       const client = createSsoClient(forcedFailure);
-      const { encoded } = await client.authenticate((i) => {
+      // 클라이언트는 0·1·2 만 낸다 — 트레이는 메시지를 한 번만 보낸다.
+      const payload = await client.authenticate((i) => {
         if (attemptRef.current === attempt) setStep(i);
       }, ac.signal);
+
+      // 4번째 단계(구독 정보 동기화)는 서버 왕복이라 여기서 켠다. 트레이가
+      // 알려 줄 수 없는 단계를 클라이언트가 지어내지 않게 하려는 것이다.
+      if (attemptRef.current === attempt) setStep(3);
 
       const res = await fetch("/api/auth/sso", {
         method: "POST",
         headers: { "content-type": "application/json" },
-        body: JSON.stringify({ encoded }),
+        // { kind, … } 를 그대로 보낸다. 서버가 모드와 종류를 교차 확인한다.
+        body: JSON.stringify(payload),
         signal: ac.signal,
       });
 
       if (!res.ok) {
-        const j = (await res.json().catch(() => ({}))) as { error?: string };
+        const j = (await res.json().catch(() => ({}))) as { error?: string; code?: string };
+        // 서버가 안내 카드가 있는 실패를 돌려주면(등록되지 않은 사용자 등)
+        // 「서버 오류」가 아니라 그 카드를 보여 준다.
+        if (isFailureCode(j.code)) throw new SsoError(j.code, j.error);
         throw new Error(j.error ?? "세션 발급에 실패했습니다.");
       }
       if (attemptRef.current !== attempt) return;

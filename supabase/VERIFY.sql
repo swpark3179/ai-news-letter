@@ -68,3 +68,17 @@ select kind, period_label, status, m.name
 -- ⑨ Storage 버킷이 만들어졌는가
 --    기대: newsletter / public = false
 select id, name, public, file_size_limit from storage.buckets;
+
+
+-- ⑩ members.epid 컬럼과 부분 유니크 인덱스 (0012)
+--    기대: epid / YES(nullable), members_epid_key
+select column_name, data_type, is_nullable
+  from information_schema.columns
+ where table_schema = 'public'
+   and table_name = 'members'
+   and column_name = 'epid';
+
+select indexname, indexdef
+  from pg_indexes
+ where schemaname = 'public'
+   and indexname = 'members_epid_key';

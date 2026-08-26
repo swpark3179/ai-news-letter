@@ -95,9 +95,46 @@ export const sessionEnv = {
 // --- SSO (서버 전용) ------------------------------------------------------
 
 export const ssoServerEnv = {
-  /** 사내 페이로드 복호화 키. mock 모드에서는 쓰이지 않는다. */
+  /**
+   * 사내 페이로드 복호화 키 (SecuBase 의 SSO baseKey, 32바이트).
+   *
+   * Java 소스의 8진 이스케이프("\47\10\167…") 형태와 base64 를 모두 받는다
+   * (src/lib/auth/sso/decode-knox.ts 의 decodeBaseKey). .env 에는 제어문자를
+   * 그대로 담을 수 없으므로 base64 로 넣는 편이 안전하다.
+   * mock 모드에서는 쓰이지 않는다.
+   */
   get decodeKey() {
     return optionalEnv("SSO_DECODE_KEY");
+  },
+
+  /**
+   * 처음 보는 EPID 를 자동으로 가입시킬지.
+   *
+   * 방침은 「등록된 사용자만 로그인한다」이므로 실 모드 기본값은 false 다.
+   * 목업 모드에서는 개발 편의를 위해 기존 동작(첫 로그인에 구독자 생성)을 유지한다.
+   */
+  get autoCreateMembers(): boolean {
+    const raw = process.env.SSO_ALLOW_AUTO_CREATE?.trim().toLowerCase();
+    if (raw === "true" || raw === "1") return true;
+    if (raw === "false" || raw === "0") return false;
+    return ssoPublicEnv.mode === "mock";
+  },
+
+  /**
+   * 무결성이 확인되지 않은 페이로드로 세션을 발급해도 되는지.
+   *
+   * SecuBase 규격을 아직 받지 못해 decode-knox.ts 가 「단순 인코딩」을 가정하고
+   * 있다 — 즉 **위조를 막지 못한다.** userInfo 가 실제로 base64 평문이라면 누구든
+   * 임의의 EPID 로 페이로드를 만들 수 있고, 등록사용자 대조를 통과하면 등록된
+   * 아무 사람으로나 로그인된다.
+   *
+   * 그래서 개발·스테이징에서는 그대로 열어 두되(연동 확인이 목적), 운영 빌드에서는
+   * 이 값을 명시적으로 1 로 두지 않는 한 실 모드 로그인을 거절한다. 규격을 받아
+   * decode-knox.ts 를 채우고 나면 이 스위치는 제거한다.
+   */
+  get allowUnverifiedPayload(): boolean {
+    if (process.env.NODE_ENV !== "production") return true;
+    return process.env.SSO_ALLOW_UNVERIFIED_PAYLOAD === "1";
   },
 };
 
@@ -110,7 +147,21 @@ export type SsoMode = "mock" | "real";
 
 export const ssoPublicEnv = {
   mode: (process.env.NEXT_PUBLIC_SSO_MODE === "real" ? "real" : "mock") as SsoMode,
+  /**
+   * 트레이 모듈의 로컬 WebSocket 주소. 레거시 참고값 `wss://localhost:29283`.
+   *
+   * **기본값을 두지 않는다.** 그럴듯한 기본값을 박아 두면 환경변수를 빠뜨린 배포가
+   * 전 사용자에게 「인증 모듈 미실행」으로 조용히 실패한다. 비어 있으면
+   * SSO_CONFIG_MISSING 으로 배포 설정 문제임을 그대로 알린다.
+   */
   trayWsUrl: process.env.NEXT_PUBLIC_SSO_TRAY_WS_URL ?? "",
+  /**
+   * getknoxsso 요청의 data 필드 — 트레이가 애플리케이션을 구분하는 코드다.
+   *
+   * 레거시 교육포털은 "KCC60TRAY0109" 를 썼다. 그것은 **그 시스템의 코드**이므로
+   * 이 서비스용 코드를 따로 발급받아 넣어야 한다. 역시 기본값을 두지 않는다.
+   */
+  trayAppCode: process.env.NEXT_PUBLIC_SSO_TRAY_APP_CODE ?? "",
 };
 
 // --- 모바일 소셜 로그인 (서버 전용) ---------------------------------------
