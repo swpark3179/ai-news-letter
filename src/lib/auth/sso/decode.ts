@@ -2,6 +2,7 @@ import "server-only";
 
 import { ssoPublicEnv } from "@/lib/env";
 import { decodeKnoxPayload } from "./decode-knox";
+import { newDecodeTrace, type DecodeTrace } from "./diag-types";
 import { SsoDecodeError, type DecodedUser, type SsoTrayPayload } from "./types";
 
 /* ===========================================================================
@@ -20,8 +21,17 @@ import { SsoDecodeError, type DecodedUser, type SsoTrayPayload } from "./types";
 /** route.ts 의 기존 import 경로를 유지한다. 정의는 types.ts 에 있다. */
 export { SsoDecodeError };
 
-export async function decodeSsoPayload(payload: SsoTrayPayload): Promise<DecodedUser> {
+/**
+ * [trace] 를 넘기면 어느 전략이 왜 실패했는지가 구조화된 형태로 담긴다. 라우트가
+ * 서버 로그에 남기고(진단용 상관 ID 와 함께), 진단 화면이 그대로 표시한다.
+ * 넘기지 않아도 동작은 같다.
+ */
+export async function decodeSsoPayload(
+  payload: SsoTrayPayload,
+  trace: DecodeTrace = newDecodeTrace(),
+): Promise<DecodedUser> {
   const real = ssoPublicEnv.mode === "real";
+  trace.kind = payload.kind;
 
   // 모드와 페이로드 종류가 어긋나면 즉시 거절한다.
   //
@@ -37,7 +47,7 @@ export async function decodeSsoPayload(payload: SsoTrayPayload): Promise<Decoded
 
   const decoded =
     payload.kind === "knox"
-      ? await decodeKnoxPayload(payload)
+      ? await decodeKnoxPayload(payload, trace)
       : await decodeMock(payload.encoded);
 
   // 어떤 경로로 왔든 반드시 이 관문을 통과한다.
@@ -47,10 +57,14 @@ export async function decodeSsoPayload(payload: SsoTrayPayload): Promise<Decoded
 /**
  * 마지막 관문 — 확인되지 않은 값이 세션·DB 까지 흘러가지 못하게 한다.
  *
+ * 진단 드라이런(diagnostics.ts)도 이 함수를 그대로 쓴다 — 진단이 「통과」라고
+ * 말한 페이로드가 실제 로그인에서 막히면 진단의 의미가 없기 때문이다. 그래서
+ * export 해 두었다. 검사 자체는 여기 한 곳에만 있다.
+ *
  * 복호화 규격이 아직 없어도 여기서 할 수 있는 검사는 지금 다 해 둔다. 디코더가
  * 무엇을 돌려주든(전략을 잘못 골라 쓰레기를 뽑았든) 이 함수를 통과해야 한다.
  */
-function assertDecodedUser(u: DecodedUser): DecodedUser {
+export function assertDecodedUser(u: DecodedUser): DecodedUser {
   const epid = clean(u.epid);
   const empNo = clean(u.empNo) || epid;
   const name = clean(u.name);
@@ -91,7 +105,7 @@ interface MockPayload {
   mock?: boolean;
 }
 
-async function decodeMock(encoded: string): Promise<DecodedUser> {
+export async function decodeMock(encoded: string): Promise<DecodedUser> {
   const body = encoded.startsWith("mock.") ? encoded.slice(5) : encoded;
 
   let parsed: MockPayload;

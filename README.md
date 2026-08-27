@@ -58,6 +58,7 @@ npm run dev                          # http://localhost:3000
 | 경로 | 내용 |
 |---|---|
 | `/login` | SSO 4단계 진행 · 실패 5종 (사번 로그인·게스트는 목업 모드에서만) |
+| `/login/diag` | 로그인 진단 — 환경변수·트레이 핸드셰이크·디코딩 드라이런 ([docs/SSO_DEBUG.md](docs/SSO_DEBUG.md)) |
 | `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바, 심층 분석, 위클리 리뷰 |
 | `/sections/[geek\|trend\|review\|deep]` | 카테고리 목록 (트렌드는 출처 필터) |
 | `/articles/[id]` | 유닛원 기사 상세 (심층 분석은 토론 코멘트 포함) |
@@ -173,6 +174,7 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
 - [docs/SSO_INTEGRATION.md](docs/SSO_INTEGRATION.md) — 사내 SSO 실구현 인계
 - [docs/SSO_KNOX_PROTOCOL.md](docs/SSO_KNOX_PROTOCOL.md) — Knox 트레이 프로토콜 · 미확정 규격 질문 목록
+- **[docs/SSO_DEBUG.md](docs/SSO_DEBUG.md) — 로그인이 안 될 때** (`/login/diag` 4단계 · 「로직 문제인가 변수 로드 문제인가」)
 - [docs/MOBILE_OAUTH2.md](docs/MOBILE_OAUTH2.md) — 모바일 앱 OAuth2 로그인 (Google · Apple)
 
 ---

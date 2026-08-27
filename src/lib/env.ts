@@ -138,6 +138,42 @@ export const ssoServerEnv = {
   },
 };
 
+// --- SSO 진단 (서버 전용) -------------------------------------------------
+
+export const ssoDebugEnv = {
+  /**
+   * 진단 화면·API 를 여는 토큰.
+   *
+   * 로그인이 안 되는 상황을 진단하는 것이 목적이라, 세션을 요구하면 쓸 수 없다.
+   * 그래서 운영에서는 이 토큰이 유일한 열쇠다. 비워 두면 운영에서 진단이 닫힌다.
+   * `node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"`
+   */
+  get token(): string {
+    return optionalEnv("SSO_DEBUG_TOKEN").trim();
+  },
+
+  /** 토큰 없이도 열어 둘지 — 개발·스테이징에서만. */
+  get openWithoutToken(): boolean {
+    return process.env.NODE_ENV !== "production";
+  },
+};
+
+/**
+ * 프로세스가 **지금** 가진 환경변수 값을 읽는다.
+ *
+ * `process.env.NEXT_PUBLIC_X` 처럼 리터럴로 쓰면 Next 가 빌드 시점 값으로 치환한다.
+ * 그래서 「Vercel 에 값을 넣었는데 화면은 여전히 옛 값으로 동작한다」는 상황을
+ * 구분할 수 없다 — 코드가 보는 값이 빌드 당시 값이기 때문이다.
+ *
+ * 동적 인덱싱은 정적 치환의 대상이 아니라 실제 process.env 를 읽는다. 진단은 두
+ * 값을 나란히 보여 주고, 다르면 「재배포 필요」라고 알린다.
+ * (서버 전용이다. 브라우저에서는 process.env 가 치환된 객체라 아무것도 못 읽는다.)
+ */
+export function runtimeEnvValue(name: string): string | undefined {
+  const env = process.env as Record<string, string | undefined>;
+  return env[name];
+}
+
 // --- SSO (클라이언트 노출) ------------------------------------------------
 //
 // NEXT_PUBLIC_ 값은 번들에 인라인되므로 process.env.X 를 통째로 읽으면 안 되고

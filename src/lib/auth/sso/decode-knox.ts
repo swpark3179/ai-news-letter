@@ -1,6 +1,7 @@
 import "server-only";
 
 import { ssoServerEnv } from "@/lib/env";
+import { newDecodeTrace, type DecodeAttempt, type DecodeTrace } from "./diag-types";
 import { SsoDecodeError, type DecodedUser } from "./types";
 
 /* ===========================================================================
@@ -56,6 +57,14 @@ const MAX_FIELD = 8 * 1024;
  */
 const STRATEGIES: {
   name: string;
+  /**
+   * 이 전략을 **시도조차 할 수 없는** 이유. null 이면 시도할 수 있다.
+   *
+   * 「키가 없어서 못 했다」와 「돌려 봤지만 텍스트가 아니었다」를 갈라 두는 자리다.
+   * 앞은 환경변수 문제, 뒤는 규격 문제 — 진단에서 이 둘을 섞으면 엉뚱한 곳을
+   * 고치게 된다 (진단 3단계의 전략 표에 그대로 나온다).
+   */
+  blocked?: (privateKey: string) => string | null;
   run: (userInfo: string, privateKey: string) => string | null;
 }[] = [
   // 그대로 JSON/쿼리스트링인 경우. 가장 먼저 보는 이유는 base64 디코딩이
@@ -68,6 +77,10 @@ const STRATEGIES: {
   // base64 디코딩 후 baseKey(SSO_DECODE_KEY) 로 반복 XOR — 후보 (A)/(C)
   {
     name: "wb64-xor-basekey",
+    blocked: () =>
+      baseKeyBytes()
+        ? null
+        : "SSO_DECODE_KEY 가 비어 있거나 32바이트로 되돌려지지 않습니다 (환경변수 문제)",
     run: (u) => {
       const key = baseKeyBytes();
       return key ? bytesToText(xor(wb64ToBytes(u), key)) : null;
@@ -77,6 +90,8 @@ const STRATEGIES: {
   // base64 디코딩 후 privateKey 를 키로 반복 XOR — 후보 (B)
   {
     name: "wb64-xor-privatekey",
+    blocked: (k) =>
+      wb64ToBytes(k).length > 0 ? null : "트레이가 준 key 가 비어 있거나 base64 가 아닙니다",
     run: (u, k) => {
       const key = wb64ToBytes(k);
       return key.length > 0 ? bytesToText(xor(wb64ToBytes(u), key)) : null;
@@ -84,16 +99,28 @@ const STRATEGIES: {
   },
 ];
 
-export async function decodeKnoxPayload(payload: {
+export interface KnoxPayload {
   userInfo: string;
   privateKey: string;
-}): Promise<DecodedUser> {
-  if (payload.userInfo.length > MAX_FIELD || payload.privateKey.length > MAX_FIELD) {
-    throw new SsoDecodeError("페이로드가 너무 큽니다.");
-  }
+}
+
+/**
+ * 실 경로 — 무결성 게이트를 통과해야만 디코딩한다.
+ *
+ * [trace] 를 넘기면 어느 전략이 무엇 때문에 실패했는지, 채택된 전략이 무엇인지가
+ * 구조화된 형태로 담긴다. 라우트는 그것을 서버 로그에 남기고, 진단 화면은 그대로
+ * 표시한다 — 「단순 인코딩」 가정이 맞는지 확인할 유일한 근거다.
+ */
+export async function decodeKnoxPayload(
+  payload: KnoxPayload,
+  trace: DecodeTrace = newDecodeTrace(),
+): Promise<DecodedUser> {
+  trace.kind = "knox";
+  assertPayloadSize(payload);
 
   // 무결성을 확인할 수단이 없는 동안, 운영 빌드에서는 세션을 내주지 않는다.
   if (!ssoServerEnv.allowUnverifiedPayload) {
+    trace.gate = "blocked";
     throw new SsoDecodeError(
       "SecuBase 복호화 규격이 아직 반영되지 않아, 운영 환경에서는 사내 SSO 로그인을 " +
         "허용하지 않습니다. src/lib/auth/sso/decode-knox.ts 를 실제 규격으로 채우세요. " +
@@ -101,31 +128,96 @@ export async function decodeKnoxPayload(payload: {
     );
   }
 
-  const attempted: string[] = [];
+  trace.gate = "open";
+  return runStrategies(payload, trace);
+}
+
+/**
+ * ★ 진단 드라이런 전용 ★ — 무결성 게이트를 지나쳐 디코딩만 해 본다.
+ *
+ * 운영에서 실 모드가 게이트에 막혀 있으면 「무엇이 문제인지」를 확인할 방법이
+ * 게이트 메시지밖에 없다. 그래서 진단 경로만 게이트를 지나 실제 전략을 돌려 보고,
+ * 어느 전략이 통하는지·클레임 키가 무엇인지까지 보고한다.
+ *
+ * **세션을 발급하는 경로에서는 절대 호출하지 않는다.** 호출부는
+ * lib/auth/sso/diagnostics.ts 의 dryRunSso 하나뿐이고, 그 함수는 쿠키를 만들지
+ * 않는다. 진단 자체도 토큰(SSO_DEBUG_TOKEN)이나 관리자 세션이 있어야 열린다.
+ */
+export async function decodeKnoxPayloadForDiagnostics(
+  payload: KnoxPayload,
+  trace: DecodeTrace,
+): Promise<DecodedUser> {
+  trace.kind = "knox";
+  assertPayloadSize(payload);
+  trace.gate = ssoServerEnv.allowUnverifiedPayload ? "open" : "diagnostics-bypass";
+  return runStrategies(payload, trace);
+}
+
+function assertPayloadSize(payload: KnoxPayload): void {
+  if (payload.userInfo.length > MAX_FIELD || payload.privateKey.length > MAX_FIELD) {
+    throw new SsoDecodeError("페이로드가 너무 큽니다.");
+  }
+}
+
+/** 후보 전략을 순서대로 시도하고, EPID 가 나오는 첫 번째를 채택한다. */
+async function runStrategies(
+  payload: KnoxPayload,
+  trace: DecodeTrace,
+): Promise<DecodedUser> {
   for (const s of STRATEGIES) {
+    const blocked = s.blocked?.(payload.privateKey) ?? null;
+    if (blocked) {
+      record(trace, { strategy: s.name, outcome: "skipped", detail: blocked });
+      continue;
+    }
+
     let text: string | null;
     try {
       text = s.run(payload.userInfo, payload.privateKey);
-    } catch {
-      attempted.push(`${s.name}(예외)`);
+    } catch (e) {
+      record(trace, {
+        strategy: s.name,
+        outcome: "error",
+        detail: e instanceof Error ? e.message : "알 수 없는 예외",
+      });
       continue;
     }
     if (!text) {
-      attempted.push(`${s.name}(건너뜀)`);
+      record(trace, {
+        strategy: s.name,
+        outcome: "unreadable",
+        detail: "복호화 결과가 유효한 UTF-8 텍스트가 아님 (제어문자가 섞여도 실패로 본다)",
+      });
       continue;
     }
 
     const claims = parseClaims(text);
     if (!claims) {
-      attempted.push(`${s.name}(해석 불가)`);
+      record(trace, {
+        strategy: s.name,
+        outcome: "unreadable",
+        detail: "JSON·쿼리스트링 어느 쪽으로도 해석되지 않음",
+      });
       continue;
     }
 
     const user = toDecodedUser(claims);
     if (!user.epid) {
-      attempted.push(`${s.name}(EPID 없음: ${Object.keys(claims).slice(0, 12).join(",")})`);
+      record(trace, {
+        strategy: s.name,
+        outcome: "no-epid",
+        detail: "클레임은 해석됐지만 EPID 로 볼 필드가 없음",
+        claimKeys: Object.keys(claims).slice(0, 24),
+      });
       continue;
     }
+
+    record(trace, {
+      strategy: s.name,
+      outcome: "adopted",
+      claimKeys: Object.keys(claims).slice(0, 24),
+    });
+    trace.adopted = s.name;
 
     if (process.env.NODE_ENV !== "production") {
       // 실제 트레이를 처음 붙일 때 이 한 줄이 규격을 알려 준다.
@@ -140,8 +232,29 @@ export async function decodeKnoxPayload(payload: {
   throw new SsoDecodeError(
     "userInfo 에서 EPID 를 얻지 못했습니다. 「단순 인코딩」 가정이 틀렸을 수 있습니다 — " +
       "SecuBase.java 규격이 필요합니다. 시도한 전략: " +
-      attempted.join(" / "),
+      summarize(trace),
   );
+}
+
+function record(trace: DecodeTrace, attempt: DecodeAttempt): void {
+  trace.attempts.push(attempt);
+}
+
+/** 기존 오류 메시지 형식을 유지한다 — "이름(이유)" 를 " / " 로 이었다. */
+function summarize(trace: DecodeTrace): string {
+  const REASON: Record<DecodeAttempt["outcome"], string> = {
+    adopted: "채택",
+    skipped: "건너뜀",
+    unreadable: "해석 불가",
+    "no-epid": "EPID 없음",
+    error: "예외",
+  };
+  return trace.attempts
+    .map((a) => {
+      const keys = a.claimKeys?.length ? `: ${a.claimKeys.slice(0, 12).join(",")}` : "";
+      return `${a.strategy}(${REASON[a.outcome]}${keys})`;
+    })
+    .join(" / ");
 }
 
 /**

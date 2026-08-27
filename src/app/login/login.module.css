@@ -461,3 +461,16 @@
   max-height: 120px;
   overflow: auto;
 }
+
+/* 실패 카드 → 진단 화면 입구 (원본에 없던 항목) */
+.diagLink {
+  margin-left: auto;
+  color: var(--purple-600);
+  font-size: 11.5px;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.diagLink:hover {
+  text-decoration: underline;
+}

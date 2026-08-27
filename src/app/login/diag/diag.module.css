@@ -1,0 +1,572 @@
+/* SSO 로그인 진단 화면.
+   디자인 시스템 토큰만 쓴다 (src/app/tokens.css) — 색 값을 직접 박으면 테마가 갈린다. */
+
+.page {
+  max-width: 960px;
+  margin: 0 auto;
+  padding: 40px 24px 96px;
+  box-sizing: border-box;
+}
+
+/* --- 머리 ---------------------------------------------------------------- */
+
+.head {
+  display: flex;
+  align-items: flex-start;
+  gap: 24px;
+  padding-bottom: 20px;
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.title {
+  margin: 0 0 6px;
+  font: 800 24px/1.2 var(--font-sans);
+  letter-spacing: -0.9px;
+  color: var(--gray-900);
+}
+
+.subtitle {
+  margin: 0;
+  max-width: 620px;
+  font-size: 13px;
+  line-height: 1.65;
+  color: var(--gray-600);
+}
+
+.headActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.toast {
+  position: sticky;
+  top: 12px;
+  z-index: 5;
+  margin: 12px 0 0;
+  padding: 8px 14px;
+  border-radius: var(--radius-md);
+  background: var(--gray-900);
+  color: #fff;
+  font-size: 12.5px;
+  width: fit-content;
+}
+
+/* --- 버튼 ---------------------------------------------------------------- */
+
+.btnPrimary,
+.btnGhost {
+  border-radius: var(--radius-md);
+  font-size: 12.5px;
+  font-weight: 600;
+  padding: 8px 14px;
+  cursor: pointer;
+  white-space: nowrap;
+  text-decoration: none;
+  line-height: 1.2;
+}
+
+.btnPrimary {
+  border: 1px solid var(--purple-600);
+  background: var(--bg-primary);
+  color: #fff;
+}
+
+.btnPrimary:hover:not(:disabled) {
+  background: var(--bg-primary-hover);
+}
+
+.btnPrimary:disabled {
+  border-color: var(--purple-300);
+  background: var(--bg-primary-disabled);
+  cursor: default;
+}
+
+.btnGhost {
+  border: 1px solid var(--gray-300);
+  background: #fff;
+  color: var(--gray-700);
+}
+
+.btnGhost:hover {
+  background: var(--gray-50);
+}
+
+/* --- 단계 ---------------------------------------------------------------- */
+
+.stage {
+  margin-top: 28px;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-xl);
+  background: #fff;
+  box-shadow: var(--shadow-xs);
+  overflow: hidden;
+}
+
+.stageHead {
+  display: flex;
+  align-items: flex-start;
+  gap: 14px;
+  padding: 20px 24px;
+  background: var(--gray-25);
+  border-bottom: 1px solid var(--gray-200);
+}
+
+.stageNo {
+  flex-shrink: 0;
+  width: 26px;
+  height: 26px;
+  border-radius: var(--radius-full);
+  background: var(--purple-600);
+  color: #fff;
+  font: 700 13px/26px var(--font-mono);
+  text-align: center;
+}
+
+.stageTitleBox {
+  min-width: 0;
+}
+
+.stageTitle {
+  margin: 0 0 5px;
+  font: 700 15.5px/1.3 var(--font-sans);
+  color: var(--gray-900);
+}
+
+.stageDesc {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--gray-600);
+}
+
+.stageActions {
+  display: flex;
+  gap: 8px;
+  margin-left: auto;
+  flex-shrink: 0;
+}
+
+.stageBody {
+  padding: 20px 24px 24px;
+}
+
+.subhead {
+  margin: 22px 0 10px;
+  font: 700 12px/1.2 var(--font-sans);
+  letter-spacing: 0.4px;
+  text-transform: uppercase;
+  color: var(--gray-500);
+}
+
+.stageBody > .subhead:first-child {
+  margin-top: 0;
+}
+
+.note,
+.hint {
+  margin: 0 0 10px;
+  font-size: 12px;
+  line-height: 1.6;
+  color: var(--gray-500);
+}
+
+.empty {
+  font-size: 12.5px;
+  line-height: 1.6;
+  color: var(--gray-500);
+}
+
+.muted {
+  color: var(--gray-400);
+}
+
+/* --- 결론 상자 ----------------------------------------------------------- */
+
+.verdict {
+  border: 1px solid var(--gray-200);
+  border-left-width: 4px;
+  border-radius: var(--radius-lg);
+  padding: 14px 16px;
+  margin-bottom: 18px;
+  background: var(--gray-50);
+}
+
+.verdictKind {
+  font: 700 10.5px/1 var(--font-sans);
+  letter-spacing: 0.6px;
+  text-transform: uppercase;
+  color: var(--gray-500);
+  margin-bottom: 6px;
+}
+
+.verdictHead {
+  font: 700 14px/1.5 var(--font-sans);
+  color: var(--gray-900);
+}
+
+.verdictNext {
+  margin: 10px 0 0;
+  padding-left: 18px;
+  font-size: 12.5px;
+  line-height: 1.7;
+  color: var(--gray-600);
+}
+
+/* --- 상태 색 ------------------------------------------------------------- */
+
+.st_ok {
+  border-left-color: var(--green-500);
+  background: var(--bg-success-tint);
+}
+
+.st_warn {
+  border-left-color: var(--yellow-400);
+  background: var(--bg-warning-tint);
+}
+
+.st_fail {
+  border-left-color: var(--red-500);
+  background: var(--bg-error-tint);
+}
+
+.st_skip {
+  border-left-color: var(--gray-300);
+}
+
+/* --- 키·값 목록 ---------------------------------------------------------- */
+
+.kv {
+  margin: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.kvRow {
+  display: grid;
+  grid-template-columns: minmax(180px, 34%) 1fr;
+  gap: 12px;
+  padding: 9px 14px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.kvRow:first-child {
+  border-top: none;
+}
+
+.kvKey {
+  margin: 0;
+  font: 600 12px/1.5 var(--font-mono);
+  color: var(--gray-600);
+  word-break: break-all;
+}
+
+.kvVal {
+  margin: 0;
+  font-size: 12.5px;
+  line-height: 1.55;
+  color: var(--gray-900);
+  word-break: break-all;
+}
+
+.kvNote {
+  display: block;
+  margin-top: 3px;
+  font-size: 11.5px;
+  color: var(--gray-500);
+}
+
+/* --- 확인 항목 ----------------------------------------------------------- */
+
+.group {
+  margin-top: 22px;
+}
+
+.checks {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+}
+
+.check {
+  display: flex;
+  gap: 11px;
+  padding: 12px 14px;
+  border-top: 1px solid var(--gray-100);
+}
+
+.check:first-child {
+  border-top: none;
+}
+
+.badge {
+  flex-shrink: 0;
+  width: 18px;
+  height: 18px;
+  margin-top: 1px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--gray-300);
+  font: 700 11px/17px var(--font-sans);
+  text-align: center;
+  color: var(--gray-600);
+}
+
+.check .st_ok {
+  border-color: var(--green-300);
+  background: var(--green-50);
+  color: var(--green-700);
+}
+
+.check .st_warn {
+  border-color: var(--yellow-300);
+  background: var(--yellow-50);
+  color: var(--yellow-700);
+}
+
+.check .st_fail {
+  border-color: var(--red-300);
+  background: var(--red-50);
+  color: var(--red-700);
+}
+
+.checkLabel {
+  font: 600 12.5px/1.45 var(--font-sans);
+  color: var(--gray-800);
+}
+
+.checkValue {
+  margin-top: 3px;
+  font: 500 12px/1.5 var(--font-mono);
+  color: var(--gray-900);
+  word-break: break-all;
+}
+
+.checkDetail {
+  margin-top: 4px;
+  font-size: 12px;
+  line-height: 1.65;
+  color: var(--gray-600);
+}
+
+/* --- 이벤트 로그 --------------------------------------------------------- */
+
+.rawToggle {
+  margin-bottom: 10px;
+}
+
+.checkboxLabel {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  font-size: 12px;
+  color: var(--gray-600);
+  cursor: pointer;
+}
+
+.log {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  background: var(--gray-25);
+  overflow: hidden;
+}
+
+.logRow {
+  display: grid;
+  grid-template-columns: 64px 78px 1fr;
+  gap: 10px;
+  padding: 7px 14px;
+  border-top: 1px solid var(--gray-100);
+  font-size: 12px;
+  line-height: 1.55;
+}
+
+.logRow:first-child {
+  border-top: none;
+}
+
+.logTime {
+  font: 500 11.5px/1.55 var(--font-mono);
+  color: var(--gray-400);
+  text-align: right;
+}
+
+.logKind {
+  font: 600 11px/1.55 var(--font-mono);
+  color: var(--gray-500);
+}
+
+.logText {
+  color: var(--gray-800);
+  word-break: break-word;
+}
+
+.kind_open,
+.kind_result,
+.kind_sent {
+  color: var(--green-700);
+}
+
+.kind_error,
+.kind_timeout {
+  color: var(--red-700);
+}
+
+.kind_ignored,
+.kind_close {
+  color: var(--yellow-700);
+}
+
+/* --- 표 ------------------------------------------------------------------ */
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-lg);
+  overflow: hidden;
+  font-size: 12.5px;
+}
+
+.table th {
+  text-align: left;
+  padding: 9px 14px;
+  background: var(--gray-50);
+  border-bottom: 1px solid var(--gray-200);
+  font: 600 11.5px/1.4 var(--font-sans);
+  color: var(--gray-500);
+}
+
+.table td {
+  padding: 9px 14px;
+  border-top: 1px solid var(--gray-100);
+  color: var(--gray-800);
+  vertical-align: top;
+  word-break: break-all;
+}
+
+.tdOk {
+  color: var(--green-700);
+  font-weight: 600;
+}
+
+.tdMuted {
+  color: var(--gray-500);
+}
+
+.claimKeys {
+  font: 500 11.5px/1.5 var(--font-mono);
+  color: var(--purple-700);
+}
+
+/* --- 입력 · 오류 --------------------------------------------------------- */
+
+.fieldLabel {
+  display: block;
+  margin-bottom: 6px;
+  font-size: 12px;
+  color: var(--gray-600);
+}
+
+.textarea {
+  width: 100%;
+  box-sizing: border-box;
+  padding: 11px 13px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-lg);
+  font: 400 12px/1.6 var(--font-mono);
+  color: var(--gray-900);
+  resize: vertical;
+}
+
+.textarea:focus {
+  outline: 2px solid var(--purple-200);
+  border-color: var(--purple-400);
+}
+
+.errorBox,
+.okBox {
+  margin: 14px 0 0;
+  padding: 13px 15px;
+  border-radius: var(--radius-lg);
+  font-size: 12.5px;
+  line-height: 1.6;
+}
+
+.errorBox {
+  border: 1px solid var(--red-200);
+  background: var(--bg-error-tint);
+  color: var(--red-800);
+}
+
+.okBox {
+  border: 1px solid var(--green-200);
+  background: var(--bg-success-tint);
+  color: var(--green-800);
+}
+
+.pre {
+  margin: 8px 0 0;
+  padding: 10px 12px;
+  border-radius: var(--radius-md);
+  background: var(--gray-100);
+  font: 400 11.5px/1.6 var(--font-mono);
+  color: var(--gray-800);
+  white-space: pre-wrap;
+  word-break: break-all;
+  max-height: 260px;
+  overflow: auto;
+}
+
+/* --- 마무리 ------------------------------------------------------------- */
+
+.closing {
+  margin-top: 32px;
+  padding: 22px 24px;
+  border: 1px dashed var(--gray-300);
+  border-radius: var(--radius-xl);
+  background: var(--gray-25);
+}
+
+.closingTitle {
+  margin: 0 0 12px;
+  font: 700 14px/1.3 var(--font-sans);
+  color: var(--gray-900);
+}
+
+.closingList {
+  margin: 0 0 12px;
+  padding-left: 20px;
+  font-size: 12.5px;
+  line-height: 1.8;
+  color: var(--gray-700);
+}
+
+.closingList ul {
+  margin: 4px 0;
+  padding-left: 18px;
+  color: var(--gray-600);
+}
+
+@media (max-width: 720px) {
+  .head,
+  .stageHead {
+    flex-wrap: wrap;
+  }
+
+  .kvRow,
+  .logRow {
+    grid-template-columns: 1fr;
+  }
+
+  .logTime {
+    text-align: left;
+  }
+}

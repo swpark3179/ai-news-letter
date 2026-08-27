@@ -13,6 +13,11 @@ EPID 추출, 등록사용자 대조까지.
 > 모드는 `SSO_ALLOW_UNVERIFIED_PAYLOAD=1` 을 명시해야만 세션을 발급합니다.
 > 개발·스테이징에서는 연동 확인을 위해 열려 있습니다.
 
+**로그인이 안 되는데 원인을 모르겠으면 `/login/diag` 를 먼저 여세요.**
+환경변수(변수 로드)와 연동 로직을 4단계로 갈라 줍니다 —
+[SSO_DEBUG.md](SSO_DEBUG.md). 실제 트레이에 처음 붙일 때 어느 복호화 전략이
+통하는지도 그 화면의 3단계가 알려 줍니다.
+
 ---
 
 ## 지금 어떻게 동작하나
@@ -32,6 +37,7 @@ proxy 가 `/api/auth/mock-session` 으로 보내고, 그 라우트가 목업 사
 
 | URL | 결과 |
 |---|---|
+| `/login/diag` | 로그인 진단 4단계 (모드와 무관하게 동작 — [SSO_DEBUG.md](SSO_DEBUG.md)) |
 | `/` (쿠키 없음) | 로그인 화면을 거치지 않고 목업 사용자로 세션 생성 |
 | `/login` | 정상 자동 로그인 (세션이 이미 있으면 `/` 로 되돌림) |
 | `/login?force=1` | 세션이 있어도 로그인 화면을 그대로 보여 줌 |
@@ -239,7 +245,8 @@ SSO_ALLOW_AUTO_CREATE=false
 ```
 
 `NEXT_PUBLIC_` 값은 빌드에 박히므로 환경변수만 바꾸고는 반영되지 않습니다 —
-**재배포가 필요합니다.**
+**재배포가 필요합니다.** 반영됐는지는 `/login/diag` 1단계의 `build-sync` 항목이
+빌드에 박힌 값과 프로세스의 값을 나란히 보여 줍니다.
 
 전환 전 확인:
 
@@ -298,6 +305,12 @@ src/lib/auth/
     client.ts         KnoxTraySsoClient — 트레이 WebSocket
     client.mock.ts    목업
     mock-user.ts      목업 사용자 (서버·브라우저 공용)
+    payload-schema.ts 요청 본문 규격 (실제 로그인·진단 드라이런이 공유)
+    diagnostics.ts    진단 — 환경변수·DB 확인 · 드라이런 (docs/SSO_DEBUG.md)
+    diag-types.ts     진단 자료구조 · 디코딩 추적 (서버·화면 공용)
+    probe.ts          트레이 핸드셰이크 관찰 (브라우저)
+    shape.ts          페이로드 모양 분석 (값을 드러내지 않는다)
+    last-attempt.ts   마지막 로그인 시도 기록 (sessionStorage)
     decode.ts         디코딩 진입점 — 모드 교차확인 · 최종 검증 관문
     decode-knox.ts    ★ 남은 실구현 자리 — SecuBase 복호화
     index.ts          mode 로 분기
