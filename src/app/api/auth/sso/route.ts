@@ -1,5 +1,9 @@
 import { NextResponse } from "next/server";
-import { SsoNotRegisteredError, resolveMemberFromSso } from "@/lib/auth/current-user";
+import {
+  SsoNotRegisteredError,
+  SsoSchemaError,
+  resolveMemberFromSso,
+} from "@/lib/auth/current-user";
 import {
   GUEST_COOKIE,
   SESSION_COOKIE,
@@ -65,6 +69,13 @@ export async function POST(req: Request) {
     const decoded = await decodeSsoPayload(parsed, trace);
     user = await resolveMemberFromSso(decoded);
   } catch (e) {
+    // 코드가 기대하는 컬럼이 DB 에 없다 — 사용자가 아니라 배포가 할 일이 있다.
+    // 미등록(403)과 갈라 두는 이유는 current-user.ts 의 SsoSchemaError 주석 참고.
+    if (e instanceof SsoSchemaError) {
+      console.error(`[sso ${tid}] DB 스키마 미적용: ${e.message}`);
+      return jsonWithTrace({ error: e.message, code: "SSO_SCHEMA_OUTDATED" }, 503, tid);
+    }
+
     // 등록되지 않았거나 중지된 계정 — 화면이 전용 안내 카드를 띄운다.
     if (e instanceof SsoNotRegisteredError) {
       console.warn(`[sso ${tid}] 등록되지 않은 사용자 — ${traceSummary(trace)}`);

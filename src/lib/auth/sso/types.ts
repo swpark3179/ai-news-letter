@@ -30,7 +30,9 @@ export type SsoFailureCode =
   /** 디코딩은 됐지만 EPID 가 members 에 없거나 비활성이다. 서버가 403 으로 돌려준다. */
   | "SSO_NOT_REGISTERED"
   /** 트레이 주소·앱코드 같은 배포 설정이 비어 있다. 사용자가 고칠 수 없는 문제다. */
-  | "SSO_CONFIG_MISSING";
+  | "SSO_CONFIG_MISSING"
+  /** 배포된 DB 에 코드가 기대하는 컬럼이 없다 (마이그레이션 미적용). 503 이다. */
+  | "SSO_SCHEMA_OUTDATED";
 
 export interface SsoFailureCheck {
   /** 항목 제목 */

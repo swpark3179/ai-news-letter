@@ -29,7 +29,7 @@ AI 뉴스레터가 쓰는 테이블 · 인덱스 · RLS · Storage 의 **참고 
 
 ### 방법 A — 대시보드 SQL Editor (가장 간단, 권장)
 
-**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 11개 마이그레이션이 순서대로 합쳐져
+**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 12개 마이그레이션이 순서대로 합쳐져
 있습니다. 대시보드 → **SQL Editor** → New query 에 **전체를 붙여넣고 한 번 Run**
 하면 끝입니다.
 

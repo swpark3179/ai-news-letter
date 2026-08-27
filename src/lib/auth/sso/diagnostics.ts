@@ -13,6 +13,7 @@ import {
 } from "@/lib/env";
 import { GUEST_COOKIE, SESSION_COOKIE, verifySession } from "@/lib/auth/session";
 import { supabaseAdmin } from "@/lib/supabase/server";
+import { MEMBERS_EPID_MISSING, isMissingColumnError } from "@/lib/supabase/schema";
 import type { MemberRow } from "@/types/db";
 import { assertDecodedUser, decodeMock } from "./decode";
 import { decodeBaseKey, decodeKnoxPayloadForDiagnostics } from "./decode-knox";
@@ -33,14 +34,16 @@ import type { DecodedUser, SsoTrayPayload } from "./types";
  * SSO 진단 — 「로직 문제인가, 변수 로드 문제인가」를 가른다
  * ===========================================================================
  *
- * 로그인이 안 될 때 원인 후보가 두 층으로 나뉜다.
+ * 로그인이 안 될 때 원인 후보가 세 층으로 나뉜다.
  *
  *   (A) 변수 로드   배포에 값이 없거나, 값을 넣었지만 빌드에 박힌 옛 값이 돌고 있다.
  *   (B) 연동 로직   변수는 정상인데 트레이 통신·복호화 규격·등록 대조가 어긋난다.
+ *   (C) DB 스키마   둘 다 정상인데 배포된 DB 에 코드가 쓰는 컬럼이 없다
+ *                   (수동 적용이라 실제로 생긴다 — members-epid 항목).
  *
- * 화면만 보면 둘이 똑같이 「SSO_TRAY_NOT_RUNNING」이나 「디코딩 실패」로 보인다.
- * 그래서 이 파일이 (A)를 먼저 전부 확인해 주고, (A)가 깨끗할 때만 (B)를 의심하게
- * 만든다. 화면은 app/login/diag, 입구는 api/auth/sso/diag 다.
+ * 화면만 보면 셋이 똑같이 「SSO_TRAY_NOT_RUNNING」이나 「디코딩 실패」·「미등록」으로
+ * 보인다. 그래서 이 파일이 (A)를 먼저 전부 확인해 주고, (A)가 깨끗할 때만 (B)·(C)를
+ * 의심하게 만든다. 화면은 app/login/diag, 입구는 api/auth/sso/diag 다.
  *
  * ⚠ 여기서 나가는 값은 전부 마스킹·모양 요약이다. 복호화 키·서비스 롤 키·세션
  *   시크릿은 **존재 여부와 길이만** 담는다 (mask · shape 참고).
@@ -566,25 +569,26 @@ async function supabaseGroup(): Promise<DiagGroup> {
   try {
     const db = supabaseAdmin();
     // 행을 받아 와서 세지 않는다 — 상한을 두면 「N행」이 실제로는 잘린 수인데도
-    // 전체처럼 보인다. 개수만 세는 질의 세 개가 더 싸고 정확하다.
-    const [total, active, withEpid] = await Promise.all([
+    // 전체처럼 보인다. 개수만 세는 질의가 더 싸고 정확하다.
+    const [total, active] = await Promise.all([
       countMembers(db),
       countMembers(db, (q) => q.eq("is_active", true)),
-      countMembers(db, (q) => q.not("epid", "is", null)),
     ]);
 
     checks.push({
       id: "members",
       label: "members 테이블",
       status: total > 0 ? "ok" : "fail",
-      value: `${total}행 · 활성 ${active} · EPID 채워짐 ${withEpid}`,
+      value: `${total}행 · 활성 ${active}`,
       detail:
         total === 0
           ? "행이 없습니다. supabase/ALL_MIGRATIONS.sql 을 실행했는지 확인하세요 — 등록된 사용자가 없으면 실 모드에서 아무도 로그인할 수 없습니다."
-          : withEpid === 0
-            ? "EPID 가 채워진 행이 없습니다. 첫 SSO 로그인에서 사번으로 찾아 백필하므로 정상일 수 있지만, 사번 체계가 다르면 아무도 매칭되지 않습니다."
-            : "EPID 로 먼저 찾고, 없으면 사번으로 찾습니다.",
+          : "EPID 로 먼저 찾고, 없으면 사번으로 찾습니다.",
     });
+
+    // EPID 는 따로 센다. 같은 질의에 묶으면 컬럼이 없을 때 members 확인 전체가
+    // 「조회 실패」로 접히고, 정작 할 일(0012 적용)이 화면에서 사라진다.
+    checks.push(await epidColumnCheck(db));
   } catch (e) {
     const msg = e instanceof Error ? e.message : "알 수 없는 오류";
     checks.push({
@@ -606,24 +610,83 @@ async function supabaseGroup(): Promise<DiagGroup> {
 }
 
 /**
- * 개수만 세는 질의. head:true 로 본문 없이 count 만 받는다.
+ * members.epid 컬럼 확인 — **이 저장소에서 실제로 겪은 로그인 실패의 원인**이다.
  *
- * 필터는 호출부에서 얹는다 — 활성·EPID 채움 여부를 각각 세되, 세는 방법은
- * 한 곳에만 두려는 것이다.
+ * 0012_member_epid.sql 을 적용하지 않은 배포에서 로그인하면 PostgREST 가
+ * `column members.epid does not exist` 를 돌려준다. 그 원문만 보고 스키마가
+ * 통째로 없다고 오해하기 쉬워서, 여기서 「무엇을 실행하면 되는지」까지 적는다.
+ */
+async function epidColumnCheck(db: ReturnType<typeof supabaseAdmin>): Promise<DiagCheck> {
+  const label = "members.epid 컬럼 (0012)";
+  // head:true 를 쓰지 않는다. HEAD 응답은 본문이 없어 오류 코드(42703)가 오지
+  // 않고, postgrest-js 가 `{ message: "" }` 로 접어 버린다 — 「컬럼이 없다」를
+  // 알아볼 근거가 사라진다. limit(1) 로 한 행만 받고 개수는 헤더로 받는다.
+  const { count, error } = await db
+    .from("members")
+    .select("epid", { count: "exact" })
+    .not("epid", "is", null)
+    .limit(1);
+
+  if (error) {
+    if (isMissingColumnError(error, "epid")) {
+      return {
+        id: "members-epid",
+        label,
+        status: "fail",
+        value: "컬럼 없음",
+        detail:
+          `${MEMBERS_EPID_MISSING} 적용 전까지는 사번(emp_no)으로만 대조하므로, ` +
+          "사번이 등록돼 있지 않은 사람은 로그인할 수 없습니다.",
+      };
+    }
+    return {
+      id: "members-epid",
+      label,
+      status: "warn",
+      value: "확인 못 함",
+      detail: `${error.message} — 위 members 항목을 먼저 보세요.`,
+    };
+  }
+
+  const filled = count ?? 0;
+  return {
+    id: "members-epid",
+    label,
+    status: "ok",
+    value: `있음 · 채워진 행 ${filled}`,
+    detail:
+      filled === 0
+        ? "EPID 가 채워진 행이 없습니다. 첫 SSO 로그인에서 사번으로 찾아 백필하므로 정상일 수 있지만, 사번 체계가 다르면 아무도 매칭되지 않습니다."
+        : "EPID 로 먼저 찾고, 없으면 사번으로 찾습니다.",
+  };
+}
+
+/**
+ * 개수만 세는 질의. 한 행만 받고 개수는 Content-Range 헤더로 받는다.
+ *
+ * head:true 가 아닌 이유: HEAD 응답에는 본문이 없어서 **오류 내용이 통째로
+ * 사라진다.** 테이블이 없으면 postgrest-js 가 404 + 빈 본문을 204 로 접어
+ * 오류 없이 count=null 을 돌려주고, 진단은 그것을 「0행」이라고 말한다 —
+ * 스키마가 통째로 없는 배포를 「등록된 사용자가 없다」로 오진하는 셈이다.
+ *
+ * 필터는 호출부에서 얹는다 — 활성 여부를 따로 세되, 세는 방법은 한 곳에만 둔다.
  */
 async function countMembers(
   db: ReturnType<typeof supabaseAdmin>,
   narrow?: (q: MembersCountQuery) => MembersCountQuery,
 ): Promise<number> {
-  const base = db.from("members").select("*", { count: "exact", head: true });
+  const base = membersCountQuery(db);
   const { count, error } = await (narrow ? narrow(base) : base);
   if (error) throw new Error(error.message);
   return count ?? 0;
 }
 
-type MembersCountQuery = ReturnType<
-  ReturnType<ReturnType<typeof supabaseAdmin>["from"]>["select"]
->;
+function membersCountQuery(db: ReturnType<typeof supabaseAdmin>) {
+  return db.from("members").select("id", { count: "exact" }).limit(1);
+}
+
+/** 필터를 얹는 쪽이 볼 타입. 질의 모양이 바뀌어도 여기 한 곳만 따라간다. */
+type MembersCountQuery = ReturnType<typeof membersCountQuery>;
 
 /** 1단계의 결론 — 어느 층의 문제인지 한 줄로 못 박는다. */
 function verdictFor(groups: DiagGroup[]): DiagVerdict {
@@ -640,6 +703,20 @@ function verdictFor(groups: DiagGroup[]): DiagVerdict {
       next: [
         "NEXT_PUBLIC_ 값을 바꾼 뒤 재배포했는지 확인 (값만 바꾸면 반영되지 않습니다)",
         "재배포 후 이 진단을 다시 실행해 build-sync 가 ok 인지 확인",
+      ],
+    };
+  }
+
+  if (find("members-epid")?.status === "fail") {
+    return {
+      kind: "schema",
+      status: "fail",
+      headline:
+        "환경변수가 아니라 DB 가 원인입니다 — members.epid 컬럼이 없어 등록 대조가 막힙니다.",
+      next: [
+        "supabase/migrations/0012_member_epid.sql 을 Supabase SQL Editor 에서 실행",
+        "supabase/VERIFY.sql 의 ⑩번 블록으로 epid 컬럼과 members_epid_key 확인",
+        "DB 쪽 변경이라 Vercel 재배포는 필요 없습니다 — 실행 후 다시 로그인하세요",
       ],
     };
   }
@@ -752,7 +829,11 @@ export async function dryRunSso(payload: SsoTrayPayload): Promise<SsoDryRun> {
     kindMatchesMode &&
     !!user &&
     trace.gate !== "diagnostics-bypass" &&
-    (member.found ? member.isActive === true : member.wouldAutoCreate) &&
+    (member.found
+      ? member.isActive === true
+      : // 컬럼이 없으면 기준 키로 찾아본 적이 없으므로 라우트는 자동 가입 대신
+        // 503(SSO_SCHEMA_OUTDATED)을 돌려준다 — resolveMemberFromSso 참고.
+        !member.epidColumnMissing && member.wouldAutoCreate) &&
     !member.error;
 
   return {
@@ -784,10 +865,14 @@ async function probeMember(u: DecodedUser): Promise<MemberProbe> {
 
   try {
     const db = supabaseAdmin();
-    let row = await selectMember(db, "epid", u.epid);
+    // 실제 로그인(resolveMemberFromSso)과 같이, 컬럼이 없으면 사번으로만 찾는다.
+    const byEpid = await selectMember(db, "epid", u.epid);
+    probe.epidColumnMissing = byEpid.columnMissing;
+
+    let row = byEpid.row;
     if (row) probe.matchedBy = "epid";
     if (!row) {
-      row = await selectMember(db, "emp_no", u.empNo);
+      row = (await selectMember(db, "emp_no", u.empNo)).row;
       if (row) probe.matchedBy = "emp_no";
     }
     if (!row) return probe;
@@ -796,8 +881,8 @@ async function probeMember(u: DecodedUser): Promise<MemberProbe> {
     probe.isActive = row.is_active;
     probe.role = row.role;
     probe.isAdmin = row.is_admin;
-    probe.epidFilled = !!row.epid;
-    probe.wouldBackfillEpid = !row.epid && !!u.epid;
+    probe.epidFilled = probe.epidColumnMissing ? null : !!row.epid;
+    probe.wouldBackfillEpid = !probe.epidColumnMissing && !row.epid && !!u.epid;
     probe.wouldAutoCreate = false;
     return probe;
   } catch (e) {
@@ -806,19 +891,23 @@ async function probeMember(u: DecodedUser): Promise<MemberProbe> {
   }
 }
 
+/** current-user.ts 의 findMemberBy 와 같은 규칙 — 「행 없음」과 「컬럼 없음」을 가른다. */
 async function selectMember(
   db: ReturnType<typeof supabaseAdmin>,
   col: "epid" | "emp_no",
   value: string,
-): Promise<MemberRow | null> {
-  if (!value) return null;
+): Promise<{ row: MemberRow | null; columnMissing: boolean }> {
+  if (!value) return { row: null, columnMissing: false };
   const { data, error } = await db
     .from("members")
     .select("*")
     .eq(col, value)
     .maybeSingle<MemberRow>();
-  if (error) throw new Error(`members 조회 실패(${col}): ${error.message}`);
-  return data ?? null;
+  if (error) {
+    if (isMissingColumnError(error, col)) return { row: null, columnMissing: true };
+    throw new Error(`members 조회 실패(${col}): ${error.message}`);
+  }
+  return { row: data ?? null, columnMissing: false };
 }
 
 function emptyProbe(): MemberProbe {
@@ -829,6 +918,7 @@ function emptyProbe(): MemberProbe {
     role: null,
     isAdmin: null,
     epidFilled: null,
+    epidColumnMissing: false,
     wouldBackfillEpid: false,
     wouldAutoCreate: ssoServerEnv.autoCreateMembers,
     error: null,
@@ -890,6 +980,21 @@ function dryRunVerdict(x: {
     };
   }
 
+  // 「못 찾았다」보다 먼저 본다 — EPID 로 찾아본 적이 없는 결과를 「미등록」이라고
+  // 부르면, 사용자는 등록을 요청하러 가고 진짜 원인인 0012 는 그대로 남는다.
+  if (x.member.epidColumnMissing && !x.member.found) {
+    return {
+      kind: "schema",
+      status: "fail",
+      headline: "members.epid 컬럼이 없어 등록 대조를 못 합니다 — 503 SSO_SCHEMA_OUTDATED.",
+      next: [
+        "supabase/migrations/0012_member_epid.sql 을 SQL Editor 에서 실행",
+        "supabase/VERIFY.sql 의 ⑩번 블록으로 확인",
+        "사용자 등록 문제가 아닙니다 — members 에 행을 추가해도 해결되지 않습니다",
+      ],
+    };
+  }
+
   if (!x.member.found) {
     return x.member.wouldAutoCreate
       ? {
@@ -916,6 +1021,22 @@ function dryRunVerdict(x: {
       status: "fail",
       headline: "사용이 중지된 계정입니다 (is_active=false).",
       next: ["members.is_active 를 true 로 바꾸세요"],
+    };
+  }
+
+  // 여기까지 왔으면 사번으로 찾아 로그인은 통과한다. 다만 기준 키(EPID)로는
+  // 대조하지 않은 상태라, 사번이 바뀌거나 사번이 없는 사람은 여전히 막힌다.
+  if (x.member.epidColumnMissing) {
+    return {
+      kind: "schema",
+      status: "warn",
+      headline:
+        "사번으로 찾아 로그인은 통과하지만, members.epid 컬럼이 없어 EPID 대조가 빠져 있습니다.",
+      next: [
+        "supabase/migrations/0012_member_epid.sql 을 SQL Editor 에서 실행",
+        "적용 후 첫 로그인에서 EPID 가 백필됩니다 — 재배포는 필요 없습니다",
+        "그 전까지는 사번이 등록돼 있지 않은 사람이 503 으로 막힙니다",
+      ],
     };
   }
 

@@ -3,8 +3,8 @@ import type { SsoFailure, SsoFailureCode } from "./types";
 /**
  * 로그인 실패 안내 카드.
  *
- * 앞 3종은 디자인 AUTH_FAILS(원본 1684~1715행)를 그대로 옮긴 것이고, 뒤 2종은
- * 실 연동에서 새로 생긴 경우다. 서버가 응답 본문의 `code` 로 돌려주면 화면이
+ * 앞 3종은 디자인 AUTH_FAILS(원본 1684~1715행)를 그대로 옮긴 것이고, 뒤 3종은
+ * 실 연동·실배포에서 새로 생긴 경우다. 서버가 응답 본문의 `code` 로 돌려주면 화면이
  * 그대로 골라 쓴다 (LoginClient 의 isFailureCode 분기).
  */
 export const AUTH_FAILURES: readonly SsoFailure[] = [
@@ -104,6 +104,29 @@ export const AUTH_FAILURES: readonly SsoFailure[] = [
       {
         t: "재배포 필요",
         d: "NEXT_PUBLIC_ 값은 빌드에 박히므로 환경변수만 바꾸고는 반영되지 않습니다.",
+      },
+    ],
+  },
+  {
+    code: "SSO_SCHEMA_OUTDATED",
+    title: "데이터베이스 스키마가 코드보다 뒤처져 있습니다",
+    desc: "사내 인증은 통과했지만, 등록 사용자를 대조할 컬럼이 이 배포의 DB 에 없습니다. 사용자가 아니라 배포 설정 문제입니다.",
+    checks: [
+      {
+        t: "0012 마이그레이션 적용",
+        d: "supabase/migrations/0012_member_epid.sql 을 Supabase 대시보드 → SQL Editor 에 붙여넣고 실행하세요. members.epid 컬럼과 부분 유니크 인덱스를 만듭니다.",
+      },
+      {
+        t: "적용 확인",
+        d: "supabase/VERIFY.sql 의 ⑩번 블록을 실행해 epid 컬럼과 members_epid_key 가 나오는지 확인하세요.",
+      },
+      {
+        t: "전체를 한 번에 맞추려면",
+        d: "supabase/ALL_MIGRATIONS.sql 을 통째로 실행해도 됩니다. 전부 if not exists 라 여러 번 실행해도 안전합니다.",
+      },
+      {
+        t: "재배포는 필요 없음",
+        d: "DB 쪽 변경이라 Vercel 재배포 없이 바로 반영됩니다. 실행한 뒤 다시 시도만 하면 됩니다.",
       },
     ],
   },

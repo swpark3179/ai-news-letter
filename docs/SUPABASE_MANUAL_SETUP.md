@@ -38,7 +38,7 @@ https://supabase.com/dashboard 에서 프로젝트를 선택합니다.
 
 ## 2단계 — 스키마 적용
 
-11개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 이
+12개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 이
 준비되어 있습니다.
 
 터미널에서 클립보드로 복사:
@@ -258,9 +258,9 @@ select kind, provider, status, fetched_count, inserted_count, skipped_count, err
 ## 관련 파일
 
 ```
-supabase/ALL_MIGRATIONS.sql   11개 마이그레이션 통합본 — 붙여넣기용
+supabase/ALL_MIGRATIONS.sql   12개 마이그레이션 통합본 — 붙여넣기용
 supabase/VERIFY.sql           적용 확인 쿼리 9종
-supabase/migrations/          개별 마이그레이션 0001~0011
+supabase/migrations/          개별 마이그레이션 0001~0012
 scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 ```
 

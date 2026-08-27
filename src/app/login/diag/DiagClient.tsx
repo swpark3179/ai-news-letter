@@ -618,6 +618,13 @@ export default function DiagClient({ token }: { token: string }) {
                         : "없음 — 403 SSO_NOT_REGISTERED"
                 }
               />
+              {dryRun.member.epidColumnMissing && (
+                <Row
+                  k="members.epid 컬럼"
+                  v="없음 — 0012 미적용"
+                  note="사번으로만 대조했습니다. supabase/migrations/0012_member_epid.sql 을 SQL Editor 에서 실행하세요."
+                />
+              )}
               {dryRun.member.wouldBackfillEpid && (
                 <Row k="EPID 백필" v="첫 로그인에서 members.epid 가 채워집니다" />
               )}
