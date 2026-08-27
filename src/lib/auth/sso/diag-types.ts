@@ -50,10 +50,21 @@ export interface DiagGroup {
  *   build   — 값은 있지만 빌드에 박힌 값이 달라 재배포가 필요한 경우
  *   logic   — 변수는 정상이고 연동 로직·규격 쪽 문제
  *   data    — members 등록·활성 상태 문제
+ *   schema  — 코드가 기대하는 컬럼이 DB 에 없다 (마이그레이션 미적용)
  *   session — 인증은 통과했고 세션·쿠키 단계 문제
  *   ok      — 이 단계에서 막을 것이 없음
+ *
+ * data 와 schema 를 가르는 이유: 앞은 「행을 추가하세요」, 뒤는 「SQL 을 실행하세요」다.
+ * 묶어 두면 화면을 보고 온 사람이 엉뚱한 곳을 고친다.
  */
-export type DiagVerdictKind = "config" | "build" | "logic" | "data" | "session" | "ok";
+export type DiagVerdictKind =
+  | "config"
+  | "build"
+  | "logic"
+  | "data"
+  | "schema"
+  | "session"
+  | "ok";
 
 export interface DiagVerdict {
   kind: DiagVerdictKind;
@@ -134,6 +145,13 @@ export interface MemberProbe {
   isAdmin: boolean | null;
   /** 찾은 행의 epid 컬럼이 채워져 있는지 */
   epidFilled: boolean | null;
+  /**
+   * members.epid 컬럼 자체가 없다 (0012 미적용).
+   *
+   * epidFilled 와 다르다 — 앞은 「값이 비었다」, 이것은 「컬럼이 없다」다.
+   * 이 값이 true 면 대조가 사번으로만 이뤄지므로 결과를 그대로 믿으면 안 된다.
+   */
+  epidColumnMissing: boolean;
   /** 로그인하면 EPID 백필이 일어나는지 */
   wouldBackfillEpid: boolean;
   /** 못 찾았을 때 자동 가입될지 (SSO_ALLOW_AUTO_CREATE) */
@@ -199,6 +217,7 @@ const KIND_LABEL: Record<DiagVerdictKind, string> = {
   build: "빌드에 박힌 값 (재배포 필요)",
   logic: "연동 로직 · 복호화 규격",
   data: "등록 사용자 데이터",
+  schema: "DB 스키마 (마이그레이션 미적용)",
   session: "세션 · 쿠키",
   ok: "이상 없음",
 };
@@ -254,6 +273,9 @@ export function dryRunToText(d: SsoDryRun): string {
     `- 디코딩 ${d.decoded.ok ? "성공" : "실패"}${d.decoded.error ? ` — ${d.decoded.error}` : ""}`,
     `- EPID ${d.decoded.epid ?? "없음"} · 사번 ${d.decoded.empNo ?? "없음"} · 이름 ${d.decoded.name ?? "없음"}`,
     `- members 매칭: ${d.member.found ? `${d.member.matchedBy} · 활성 ${d.member.isActive}` : "없음"}`,
+    ...(d.member.epidColumnMissing
+      ? ["- ⚠ members.epid 컬럼 없음 (0012 미적용) — 사번으로만 대조했습니다"]
+      : []),
     `- 결론: [${d.verdict.kind}] ${d.verdict.headline}`,
   );
   return lines.join("\n");

@@ -37,7 +37,7 @@
 
 | 항목 | 확인 |
 |---|---|
-| Supabase 프로젝트 + 마이그레이션 11개 적용 | `supabase/VERIFY.sql` 통과 |
+| Supabase 프로젝트 + 마이그레이션 12개 적용 | `supabase/VERIFY.sql` 통과 — ⑩번 블록의 `members.epid` 까지 확인 |
 | Storage 버킷 `newsletter` 생성 | Supabase → Storage |
 | `SUPABASE_URL` · `service_role` 키 확보 | Project Settings → API |
 | 로컬에서 `npm run dev` 가 뜨고 화면이 보임 | http://localhost:3000 |
@@ -157,9 +157,12 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 | 이름 | 기본값 | 언제 필요한가 |
 |---|---|---|
 | `SUPABASE_STORAGE_BUCKET` | `newsletter` | 버킷 이름을 다르게 만들었을 때 |
-| `NEXT_PUBLIC_SSO_MODE` | `mock` | 사내 SSO 실연동 후 `real` 로 (→ 9절) |
-| `NEXT_PUBLIC_SSO_TRAY_WS_URL` | — | `real` 모드에서만 |
-| `SSO_DECODE_KEY` | — | `real` 모드에서만 |
+| `NEXT_PUBLIC_SSO_MODE` | `mock` | 사내 SSO 실연동 후 `real` 로 (→ 9절). **넣지 않으면 목업으로 돕니다** |
+| `NEXT_PUBLIC_SSO_TRAY_WS_URL` | — | `real` 모드 필수 — 트레이 `wss://` 주소 |
+| `NEXT_PUBLIC_SSO_TRAY_APP_CODE` | — | `real` 모드 필수 — 이 서비스용으로 발급받은 코드 |
+| `SSO_DECODE_KEY` | — | `real` 모드 필수 — SecuBase baseKey (base64 권장) |
+| `SSO_ALLOW_UNVERIFIED_PAYLOAD` | — | `real` 모드 운영 빌드가 여기서 멈춥니다 (→ 9.3) |
+| `SSO_DEBUG_TOKEN` | — | 운영에서 `/login/diag` 를 여는 열쇠. 비우면 관리자 세션으로만 열립니다 |
 | `LLM_PROVIDER` | `openai` | 관리자 화면에서 **트렌드** 수집을 돌릴 때. 비우면 키가 있는 쪽을 자동 선택 |
 | `GEMINI_API_KEY` | — | 같음 (https://aistudio.google.com/apikey) |
 | `GEMINI_MODEL` | `gemini-2.5-flash` | 모델 교체 시 |
@@ -378,15 +381,88 @@ Hobby 에서 `0 * * * *` 처럼 더 자주 도는 표현식은 **배포 자체�
 
 ---
 
-## 9. SSO — 배포하면 달라지는 것
+## 9. SSO — Vercel 에서 목업을 끄고 실 모드로 바꾸기
 
-`NEXT_PUBLIC_SSO_MODE=mock` 이면 배포 후에도 지금처럼 동작합니다.
-`real` 로 바꿀 때 **HTTPS 환경 특유의 문제**가 세 가지 있습니다.
+### 9.0 왜 배포했는데 아직 목업인가
+
+`NEXT_PUBLIC_SSO_MODE` 의 **기본값이 `mock`** 이기 때문입니다 (`src/lib/env.ts`).
+변수를 넣지 않은 배포, 값을 넣었지만 재배포하지 않은 배포는 모두 목업으로 돕니다.
+
+`/login/diag` 1단계의 「모드」가 지금 상태를 그대로 보여 줍니다.
+
+```
+모드 mock · 트레이 (비어 있음) · 앱 코드 (비어 있음)   ← 아래 9.1 부터 하세요
+```
+
+> **`NEXT_PUBLIC_` 값은 빌드 산출물에 문자열로 박힙니다.** Vercel 대시보드에서
+> 값만 바꾸고 재배포하지 않으면 화면은 계속 옛 값으로 동작합니다. 이 어긋남을
+> 잡으라고 진단 1단계가 「코드가 보는 값」과 「프로세스가 지금 가진 값」을
+> 나란히 보여 줍니다 (`build-sync` 항목).
+
+### 9.1 먼저 확보해야 할 값 3가지
+
+셋 다 사내에서 받아 와야 하는 값입니다. **하나라도 비면 실 모드가 성립하지 않습니다.**
+
+| 값 | 어디서 | 없으면 |
+|---|---|---|
+| 트레이 `wss://` 주소 | 인증 모듈 담당 부서. 레거시 참고값 `wss://localhost:29283` | 로그인 화면이 `SSO_CONFIG_MISSING` |
+| 이 서비스용 앱 코드 | 트레이 담당자에게 **새로 발급** — 레거시 교육포털의 `KCC60TRAY0109` 를 그대로 쓰면 안 됩니다 | 같음 |
+| SecuBase baseKey (32바이트) | 인증 담당자. `SSO_DECODE_KEY` | 디코딩 실패 (401) |
+
+### 9.2 Vercel 환경변수 (Production)
+
+Settings → Environment Variables 에 넣습니다.
+
+| 이름 | 값 | 비고 |
+|---|---|---|
+| `NEXT_PUBLIC_SSO_MODE` | `real` | 이 한 줄이 목업/실 모드를 가릅니다 |
+| `NEXT_PUBLIC_SSO_TRAY_WS_URL` | 받은 `wss://…` 주소 | 기본값 없음 — 비우면 배포 설정 오류로 알립니다 |
+| `NEXT_PUBLIC_SSO_TRAY_APP_CODE` | 발급받은 앱 코드 | 같음 |
+| `SSO_DECODE_KEY` | baseKey (**base64 권장**) | `.env` 에 제어문자를 담을 수 없어 8진 이스케이프보다 안전합니다 |
+| `SSO_ALLOW_UNVERIFIED_PAYLOAD` | `1` | ⚠ 아래 9.3 을 **반드시** 읽고 넣으세요 |
+| `SSO_ALLOW_AUTO_CREATE` | 넣지 않음 (real 기본값 `false`) | 방침이 「등록된 사용자만」입니다 |
+| `SSO_DEBUG_TOKEN` | 임의의 문자열 | 운영에서 `/login/diag` 를 여는 유일한 열쇠입니다 |
+
+```bash
+# SSO_DEBUG_TOKEN 만들기
+node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+```
+
+### 9.3 ⚠ `SSO_ALLOW_UNVERIFIED_PAYLOAD` 를 넣기 전에
+
+SecuBase 복호화 규격을 아직 받지 못해 `src/lib/auth/sso/decode-knox.ts` 는
+「단순 인코딩」을 가정하고 있습니다 — 즉 **페이로드 위조를 막지 못합니다.**
+userInfo 가 실제로 base64 평문이라면 누구든 임의의 EPID 로 페이로드를 만들어
+등록된 아무 사람으로나 로그인할 수 있습니다.
+
+그래서 운영 빌드는 이 값을 `1` 로 명시하지 않는 한 실 모드 로그인을 **거절합니다.**
+규격을 받아 `decode-knox.ts` 를 채우기 전까지는 사내망 안에서만, 전환을 확인하는
+목적으로만 켜 두세요. 규격이 들어오면 이 스위치는 제거합니다
+([SSO_KNOX_PROTOCOL.md](SSO_KNOX_PROTOCOL.md)).
+
+### 9.4 재배포하고 확인
+
+값을 넣은 **뒤에 반드시 재배포**합니다 (Deployments → 최신 배포 → ⋯ → Redeploy).
+
+```
+1) /login/diag?token=<SSO_DEBUG_TOKEN> 을 엽니다
+2) 1단계  모드 real · 트레이/앱 코드가 채워짐 · build-sync 가 ok
+          ← 여기서 mock 이면 재배포가 안 된 것입니다
+3) 2단계  트레이 핸드셰이크 — 소켓이 열리는지, 어떤 프레임이 오는지
+4) 3단계  디코딩 드라이런 — 어느 전략이 통하는지, 클레임 키가 무엇인지
+5) /login 에서 실제로 한 번 로그인
+```
+
+읽는 법은 [SSO_DEBUG.md](SSO_DEBUG.md) 에 단계별로 있습니다.
+
+### 9.5 HTTPS 환경 특유의 문제 3가지
 
 1. **`ws://` 는 차단됩니다.** HTTPS 페이지에서 평문 WebSocket 은 브라우저가
    mixed content 로 막습니다. 트레이 모듈이 `wss://` 를 제공해야 합니다.
 2. **`wss://127.0.0.1:포트` 는 인증서 문제가 남습니다.** 자체 서명 인증서면
    연결이 실패합니다. 사내 CA 가 서명한 인증서를 트레이 모듈이 써야 합니다.
+   브라우저는 「인증서를 못 믿음」과 「모듈 미실행」을 구분해 주지 않으므로,
+   트레이 주소를 새 탭에서 한 번 열어 인증서를 수락해 보는 것이 빠릅니다.
 3. **`real` 모드에서는 사번 폴백과 게스트 열람이 403 입니다.**
    방침이 「사내 SSO 를 통과하지 못하면 일반 사용을 제공하지 않는다」이기
    때문입니다. 트레이 모듈이 없는 기기에서는 로그인할 방법이 없다는 뜻이므로,
@@ -394,6 +470,18 @@ Hobby 에서 `0 * * * *` 처럼 더 자주 도는 표현식은 **배포 자체�
    붙여 `src/app/api/auth/signin/route.ts` 를 채우거나, 그 기기는 웹을 쓰지
    않는 것으로 두거나(모바일이라면 앱의 OAuth2 경로가 있습니다 →
    [MOBILE_OAUTH2.md](MOBILE_OAUTH2.md)).
+
+> 목업 우회 경로(게스트 열람·사번 폴백·무로그인 자동 세션)는 **운영 빌드에서는
+> 모드와 무관하게 이미 닫혀 있습니다.** 목업 모드로 올라간 운영 배포에서 인증이
+> 통째로 사라지는 것을 막기 위해서입니다 (`src/lib/env.ts` 의 `devAuthEnv`).
+> 그래서 지금 Vercel 배포는 「목업 모드 + 우회 경로 닫힘」 상태입니다.
+
+### 9.6 DB 는 미리 맞춰 두세요
+
+실 모드 로그인은 EPID 로 `members` 를 대조합니다. `members.epid` 컬럼이 없으면
+목업이든 실 모드든 **로그인이 503 으로 실패합니다**
+(`column members.epid does not exist`). 0012 마이그레이션이 그 컬럼을 만듭니다 →
+13절 문제 해결 표.
 
 전환 절차와 채워야 할 코드는 [SSO_INTEGRATION.md](SSO_INTEGRATION.md) 에 있습니다.
 
@@ -455,6 +543,8 @@ Vercel 과 GitHub Actions 는 **환경변수를 공유하지 않습니다.** 같
 | 사진 자리에 `hostname … is not configured under images` | **빌드 시점**에 `SUPABASE_URL` 이 없었음 (`next.config.ts` 가 빌드 때 읽습니다) → 재배포 |
 | 사진 URL 이 403/404 | private 버킷인데 `getPublicUrl()` 을 쓰는 상태 → [SUPABASE_MANUAL_SETUP.md](SUPABASE_MANUAL_SETUP.md) 3단계의 서명 URL 코드로 교체 |
 | `/login` 에서 계속 되돌아온다 | 브라우저가 쿠키를 막고 있거나, 배포마다 `SESSION_SECRET` 이 달라짐 (한 번 정하면 고정) |
+| 로그인 실패 · `members 조회 실패: column members.epid does not exist` | **0012 마이그레이션 미적용.** `supabase/migrations/0012_member_epid.sql` 을 SQL Editor 에서 실행 (또는 `ALL_MIGRATIONS.sql` 전체). DB 쪽이라 재배포는 필요 없습니다 — `supabase/VERIFY.sql` ⑩번으로 확인 |
+| 로그인 화면에 「데이터베이스 스키마가 코드보다 뒤처져 있습니다」 | 위와 같은 원인 (503 `SSO_SCHEMA_OUTDATED`) |
 | `/admin` 이 `/` 로 튕긴다 | 그 사번의 `members.is_admin` 이 `false` → SQL 로 확인·수정 |
 | 업로드 중 `413 FUNCTION_PAYLOAD_TOO_LARGE` | 조각 크기가 4.5MB 초과 → 4MB 유지 (7.2) |
 | 파이프라인 실행이 `504 FUNCTION_INVOCATION_TIMEOUT` | 함수 시간 한도 초과 → `limit` 축소 또는 GitHub Actions 사용 (7.1) |
@@ -517,6 +607,7 @@ export async function GET(req: Request) {
 
 - [ ] `npm run typecheck` · `npm run build` 로컬 통과
 - [ ] GitHub private 리포에 푸시, `.env.local` 미포함 확인
+- [ ] `supabase/VERIFY.sql` ⑩번 통과 — `members.epid` + `members_epid_key` (0012)
 - [ ] Vercel 프로젝트 생성 + 필수 환경변수 3개 (Production)
 - [ ] 배포 성공, `/login` → 1면까지 확인
 - [ ] Function Region = Seoul (icn1) 로 변경 후 재배포

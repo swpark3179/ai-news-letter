@@ -46,6 +46,7 @@ proxy 가 `/api/auth/mock-session` 으로 보내고, 그 라우트가 목업 사
 | `/login?fail=SSO_TIMEOUT_30S` | 30초 타임아웃 실패 화면 |
 | `/login?fail=SSO_NOT_REGISTERED` | 등록되지 않은 사용자 화면 |
 | `/login?fail=SSO_CONFIG_MISSING` | 연동 설정 누락 화면 |
+| `/login?fail=SSO_SCHEMA_OUTDATED` | DB 스키마 미적용 화면 (0012) |
 
 실패 화면에서 **사번으로 로그인** → 아무 사번/비밀번호나 통과(목업),
 **뉴스레터로 이동 →** → 게스트 모드(공개 기사만, 코멘트·스크랩 차단).
@@ -139,10 +140,15 @@ decodeKnoxPayload(payload: { userInfo, privateKey }) => Promise<DecodedUser>
 "SSO_TIMEOUT_30S"         // 열린 뒤 30초 초과 (열리지도 못했으면 NOT_RUNNING)
 "SSO_NOT_REGISTERED"      // 서버가 403 으로 — 등록되지 않았거나 비활성
 "SSO_CONFIG_MISSING"      // 트레이 주소·앱코드 미설정 (배포 문제)
+"SSO_SCHEMA_OUTDATED"     // 서버가 503 으로 — DB 에 members.epid 가 없다 (0012 미적용)
 ```
 
-뒤 두 개는 서버가 응답 본문의 `code` 로 돌려주고, `LoginClient` 의 `isFailureCode`
+뒤 세 개는 서버가 응답 본문의 `code` 로 돌려주고, `LoginClient` 의 `isFailureCode`
 분기가 「서버 오류」 대신 전용 안내 카드를 띄웁니다.
+
+`SSO_NOT_REGISTERED` 와 `SSO_SCHEMA_OUTDATED` 를 가르는 것이 중요합니다. 앞은
+「members 에 행을 추가하세요」, 뒤는 「SQL 을 실행하세요」입니다. 컬럼이 없는
+상태를 미등록으로 부르면 사용자는 등록을 요청하러 가고, 진짜 원인은 그대로 남습니다.
 
 ### 등록사용자 대조 — 「EPID 로 비교」
 
@@ -153,6 +159,16 @@ decodeKnoxPayload(payload: { userInfo, privateKey }) => Promise<DecodedUser>
    흡수하는 폴백. 찾으면 그 행에 **EPID 를 채웁니다**(백필).
 3. 그래도 없으면 → `SSO_ALLOW_AUTO_CREATE` 가 꺼져 있으면 `SsoNotRegisteredError`
 4. `is_active === false` → 같은 예외지만 **다른 문구** (사용자가 할 일이 다릅니다)
+
+**`members.epid` 컬럼이 없는 배포**(0012 미적용)에서는 1번이 PostgREST 42703 으로
+실패합니다. 그 오류를 그대로 올리면 `column members.epid does not exist` 가 500 으로
+나가고 정작 할 일은 아무 데도 적히지 않으므로, 조회 헬퍼가 「행이 없다」와 「컬럼이
+없다」를 갈라 돌려줍니다 (`isMissingColumnError` — `src/lib/supabase/schema.ts`).
+
+- 사번으로 찾히면 **로그인은 통과**시키고 EPID 백필만 건너뜁니다. 컬럼이 생기면
+  다음 로그인이 채웁니다.
+- 사번으로도 못 찾으면 기준 키로 찾아본 적이 없으므로 미등록이라고 단정하지 않고
+  `SsoSchemaError` → 503 `SSO_SCHEMA_OUTDATED` 로 「0012 를 실행하라」고 말합니다.
 
 `0012_member_epid.sql` 이 **SQL 백필을 하지 않는 이유**가 여기 있습니다. EPID 는
 사번과 다른 체계라 `epid = emp_no` 로 미리 채우면 **틀린 값**이 `members_epid_key`
