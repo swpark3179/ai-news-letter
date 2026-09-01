@@ -328,6 +328,16 @@ export const syncEnv = {
     const n = Number(process.env.GEEK_MAX_PAGES);
     return Number.isFinite(n) && n > 0 ? n : 8;
   },
+  /** 쇼케이스(/show)에서 몇 일 전까지 긁어올지 */
+  get showLookbackDays() {
+    const n = Number(process.env.SHOW_LOOKBACK_DAYS);
+    return Number.isFinite(n) && n > 0 ? n : 3;
+  },
+  /** /show 는 메인보다 글이 뜸해 기본값이 더 작다 */
+  get showMaxPages() {
+    const n = Number(process.env.SHOW_MAX_PAGES);
+    return Number.isFinite(n) && n > 0 ? n : 5;
+  },
   /** 트렌드 브리핑 1회 실행당 새로 기사화할 최대 건수 */
   get trendMaxNew() {
     const n = Number(process.env.TREND_MAX_NEW);
