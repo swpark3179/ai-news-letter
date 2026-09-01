@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { kstDateString } from "@/lib/format";
+import { runContentStage } from "./hada-content";
 import { SyncRun } from "./run-log";
 import {
   crawlGeekNews,
@@ -59,6 +60,24 @@ export async function syncGeekNews(
         echo: opts.echo,
       });
 
+  /**
+   * 본문 단계 — 목록 적재가 끝난 뒤 상세 페이지를 열어 hada_contents 를 채운다.
+   *
+   * 신규가 0건이어도 부른다: 예산이 남으면 아직 본문이 없는 과거 항목을 메우므로,
+   * 처음 켤 때도 별도 백필 없이 며칠에 걸쳐 저절로 채워진다.
+   * 절대 던지지 않으므로 여기서 목록 수집이 뒤집힐 일은 없다.
+   */
+  const collectBodies = (freshUrls: string[]) =>
+    runContentStage(db, {
+      source: "geeknews",
+      freshUrls,
+      dryRun: opts.dryRun,
+      // 관리자 화면에서 부를 때는 예산을 줄인다 — Vercel 함수의 maxDuration(300초)
+      // 안에서 목록 수집까지 함께 끝나야 한다.
+      maxPerRun: opts.trigger === "admin_ui" ? 15 : undefined,
+      run,
+    });
+
   try {
     const since = kstMidnightDaysAgo(lookbackDays);
     run.log(
@@ -80,6 +99,7 @@ export async function syncGeekNews(
 
     if (crawled.items.length === 0) {
       run.log("기간 내 신규 항목이 없습니다.", "warn");
+      await collectBodies([]);
       await run.finish("success");
       return { runId: run.id, fetched: 0, inserted: 0, skipped: 0, items: [] };
     }
@@ -116,6 +136,7 @@ export async function syncGeekNews(
     run.log(`신규 ${fresh.length}건 · 이미 있는 항목 ${run.skipped}건 건너뜀`);
 
     if (fresh.length === 0) {
+      await collectBodies([]);
       await run.finish("success");
       return {
         runId: run.id,
@@ -133,6 +154,7 @@ export async function syncGeekNews(
         run.log(`  · ${i.title}  (${i.url})`);
       }
       if (fresh.length > 10) run.log(`  … 외 ${fresh.length - 10}건`);
+      await collectBodies(fresh.map((i) => i.url));
       await run.finish("success");
       return {
         runId: run.id,
@@ -166,6 +188,8 @@ export async function syncGeekNews(
     if (insErr) throw new Error(`저장 실패: ${insErr.message}`);
 
     run.inserted = inserted?.length ?? 0;
+
+    await collectBodies(fresh.map((i) => i.url));
     await run.finish("success");
 
     return {

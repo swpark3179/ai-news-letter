@@ -124,6 +124,43 @@ export interface ShowcaseItemRow {
   collected_date: string;
 }
 
+/** 본문을 어느 목록에서 가져왔는지. hada_contents.source 와 같은 값. */
+export type HadaSourceKind = "geeknews" | "showcase";
+
+/**
+ * 본문 수집 결과.
+ *   ok           본문을 얻었다
+ *   empty        컨테이너는 찾았는데 본문이 사실상 비어 있다
+ *   parse_failed 본문 컨테이너를 못 찾았다 (마크업 변경 의심)
+ *   fetch_failed HTTP 실패 / 타임아웃
+ */
+export type HadaContentStatus = "ok" | "empty" | "parse_failed" | "fetch_failed";
+
+/**
+ * 긱뉴스 / 쇼케이스 상세 페이지 본문.
+ *
+ * geek_news / showcase_items 와 PK(url)가 같다. 목록 테이블을 얇게 두려고
+ * 분리했다 — 목록 조회가 select('*') 라, 본문을 그쪽에 넣으면 목록 한 번
+ * 그릴 때마다 본문을 통째로 끌어오게 된다.
+ */
+export interface HadaContentRow {
+  /** PK — geek_news.url / showcase_items.url 과 같은 값 */
+  url: string;
+  source: HadaSourceKind;
+  /** "함께 보면 좋은 글" 직전까지의 본문 (마크다운). 요약이 아니라 원문 그대로다. */
+  body_md: string;
+  body_chars: number;
+  truncated: boolean;
+  status: HadaContentStatus;
+  /** 본문을 뽑아낸 CSS 셀렉터 — 마크업 드리프트 추적용 */
+  container: string | null;
+  attempts: number;
+  last_error: string | null;
+  content_hash: string | null;
+  fetched_at: string;
+  updated_at: string;
+}
+
 export interface TrendMetrics {
   stars?: number;
   stars_in_period?: number;

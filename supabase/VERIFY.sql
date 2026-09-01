@@ -144,3 +144,51 @@ select
 -- ⑮ 앱이 볼 최신 상태 (0013)
 --    수집이 돌고 있다면 date 가 오늘이어야 한다. 앱 홈 마스트헤드에 그대로 뜬다.
 select * from public.mobile_issue;
+
+
+-- ⑯ 본문 저장소가 만들어졌는가 (0015)
+--    기대: hada_contents 한 행, rowsecurity = true.
+--    anon 권한은 ⑫ 목록에 나타나면 안 된다 (본문 뷰는 아직 열지 않았다).
+select tablename, rowsecurity
+  from pg_tables
+ where schemaname = 'public'
+   and tablename = 'hada_contents';
+
+
+-- ⑰ 본문 수집이 실제로 되고 있는가 (0015)
+--
+--    수집을 한 번이라도 돌린 뒤에 본다.
+--      status = 'ok'           본문을 얻었다 — 대부분 여기여야 한다
+--      status = 'parse_failed' 본문 컨테이너를 못 찾았다
+--
+--    parse_failed 가 눈에 띄게 많으면 상세 페이지 마크업이 바뀐 것이다.
+--    sources/hada-topic.ts 의 BODY_SELECTORS 를 다시 실측하세요
+--    (GitHub Actions 의 "긱뉴스 상세 구조 진단" 워크플로).
+select source,
+       status,
+       count(*)                       as 건수,
+       round(avg(body_chars))         as 평균_글자수,
+       max(body_chars)                as 최대_글자수,
+       sum(truncated::int)            as 상한에_걸린_건수
+  from public.hada_contents
+ group by source, status
+ order by source, status;
+
+
+-- ⑱ 본문 저장소가 얼마나 커졌는가 (0015)
+--    TOAST 압축까지 반영된 실제 크기다. 연 20~25MB 안팎을 예상한다.
+select pg_size_pretty(pg_total_relation_size('public.hada_contents')) as 본문_저장소_크기;
+
+
+-- ⑲ 아직 본문이 없는 항목이 얼마나 남았는가 (0015)
+--    수집을 처음 켠 뒤에는 크지만, 실행마다 예산(HADA_CONTENT_MAX_PER_RUN)만큼
+--    줄어들어야 한다. 며칠 지나도 안 줄면 로그에서 실패 사유를 보세요.
+select 'geeknews' as source, count(*) as 본문_없는_항목
+  from public.geek_news g
+  left join public.hada_contents c on c.url = g.url and c.status = 'ok'
+ where c.url is null
+union all
+select 'showcase', count(*)
+  from public.showcase_items s
+  left join public.hada_contents c on c.url = s.url and c.status = 'ok'
+ where c.url is null;

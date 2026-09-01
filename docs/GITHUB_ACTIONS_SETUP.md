@@ -1,13 +1,20 @@
 # GitHub Actions 설정 가이드
 
-동기화 워크플로 4개를 실제로 돌리기 위한 절차입니다.
+동기화 워크플로 4개와 진단 워크플로 1개를 실제로 돌리기 위한 절차입니다.
 
 | 워크플로 | 트리거 | LLM | 하는 일 |
 |---|---|---|---|
-| `sync-geeknews.yml` | 매일 07:00 KST + 수동 | **없음** | news.hada.io 제목·요약을 그대로 수집 |
+| `sync-geeknews.yml` | 매일 07:00 KST + 수동 | **없음** | news.hada.io 제목·요약 + **상세 본문** 수집 |
 | `sync-trend-openai.yml` | 매일 07:10 KST + 수동 | OpenAI | GitHub·HN·arXiv → 한국어 기사 |
-| `sync-hada-show.yml` | 매일 07:20 KST + 수동 | **없음** | news.hada.io/show — 직접 만든 것 소개 |
+| `sync-hada-show.yml` | 매일 07:20 KST + 수동 | **없음** | news.hada.io/show — 직접 만든 것 소개 + 본문 |
 | `sync-trend-gemini.yml` | **수동만** | Gemini | 같은 작업을 Gemini 로 |
+| `probe-hada-topic.yml` | **수동만** | **없음** | 상세 페이지 한 장의 본문 추출을 진단 (DB·시크릿 불필요) |
+
+긱뉴스·쇼케이스는 목록을 적재한 뒤 상세 페이지를 열어 본문을 `hada_contents` 에
+담습니다. 경계("함께 보면 좋은 글")가 리터럴 문자열이라 LLM 을 쓰지 않으므로
+API 키가 추가로 필요하지 않습니다. 한 실행에서 받는 건수는
+`HADA_CONTENT_MAX_PER_RUN`(기본 40)이 정하고, 요청 간 1.5초를 둡니다 —
+그래서 두 워크플로의 `timeout-minutes` 를 20분으로 잡았습니다.
 
 정기 실행을 OpenAI 가 맡고 있습니다. `GEMINI_API_KEY` 를 아직 등록하지 않았기
 때문입니다. Gemini 로 되돌리려면 `sync-trend-gemini.yml` 의 `schedule` 주석을 풀고
@@ -96,6 +103,18 @@ Actions 탭 → 워크플로 선택 → **Run workflow**
 6. `쇼케이스 동기화` 를 그냥 실행 → 실제 적재. 한 번 더 돌려 `저장 0건` 이면
    중복 방지(멱등성)까지 확인된 것입니다
 7. 결과가 괜찮으면 그대로 두면 다음날 07:00 부터 자동으로 돕니다
+
+**본문 수집을 처음 켤 때는 0번을 먼저 하세요.**
+
+0. `긱뉴스 상세 구조 진단` 을 토픽 URL 하나로 실행 → 로그에서
+   `추출 결과 — status=ok` 와 본문 내용을 확인합니다.
+   `status=parse_failed` 면 `src/lib/sync/sources/hada-topic.ts` 의
+   `BODY_SELECTORS` 가 실제 마크업과 어긋난 것입니다. 같은 로그의
+   **텍스트가 많은 요소** 목록에서 진짜 본문 컨테이너를 골라 그 배열에 넣으세요.
+   쇼케이스 URL 로도 한 번 돌려 두 소스의 구조가 같은지 확인합니다.
+
+   이 워크플로는 시크릿도 DB 도 쓰지 않으므로 아무 때나 돌려도 안전합니다.
+   나중에 사이트 마크업이 바뀌어 `parse_failed` 가 늘 때도 여기서 다시 봅니다.
 
 ---
 

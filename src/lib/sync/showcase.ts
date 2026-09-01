@@ -1,5 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { kstDateString } from "@/lib/format";
+import { runContentStage } from "./hada-content";
 import { SyncRun } from "./run-log";
 import { kstMidnightDaysAgo } from "./geeknews";
 import { crawlHadaShow, type ShowcaseItem } from "./sources/hada-show";
@@ -52,6 +53,16 @@ export async function syncShowcase(
         echo: opts.echo,
       });
 
+  /** 본문 단계 — 긱뉴스와 같다 (src/lib/sync/hada-content.ts 주석 참고). */
+  const collectBodies = (freshUrls: string[]) =>
+    runContentStage(db, {
+      source: "showcase",
+      freshUrls,
+      dryRun: opts.dryRun,
+      maxPerRun: opts.trigger === "admin_ui" ? 15 : undefined,
+      run,
+    });
+
   try {
     const since = kstMidnightDaysAgo(lookbackDays);
     run.log(
@@ -75,6 +86,7 @@ export async function syncShowcase(
 
     if (crawled.items.length === 0) {
       run.log("기간 내 신규 항목이 없습니다.", "warn");
+      await collectBodies([]);
       await run.finish("success");
       return { runId: run.id, fetched: 0, inserted: 0, skipped: 0, items: [] };
     }
@@ -97,6 +109,7 @@ export async function syncShowcase(
     run.log(`신규 ${fresh.length}건 · 이미 있는 항목 ${run.skipped}건 건너뜀`);
 
     if (fresh.length === 0) {
+      await collectBodies([]);
       await run.finish("success");
       return {
         runId: run.id,
@@ -114,6 +127,7 @@ export async function syncShowcase(
         run.log(`  · ${i.title}  (${i.url})`);
       }
       if (fresh.length > 10) run.log(`  … 외 ${fresh.length - 10}건`);
+      await collectBodies(fresh.map((i) => i.url));
       await run.finish("success");
       return {
         runId: run.id,
@@ -147,6 +161,8 @@ export async function syncShowcase(
     if (insErr) throw new Error(`저장 실패: ${insErr.message}`);
 
     run.inserted = inserted?.length ?? 0;
+
+    await collectBodies(fresh.map((i) => i.url));
     await run.finish("success");
 
     return {
