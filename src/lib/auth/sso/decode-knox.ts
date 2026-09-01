@@ -1,5 +1,12 @@
 import "server-only";
 
+import {
+  constants as cryptoConstants,
+  createDecipheriv,
+  createPrivateKey,
+  privateDecrypt,
+  type KeyObject,
+} from "node:crypto";
 import { ssoServerEnv } from "@/lib/env";
 import { newDecodeTrace, type DecodeAttempt, type DecodeTrace } from "./diag-types";
 import { SsoDecodeError, type DecodedUser } from "./types";
@@ -19,25 +26,28 @@ import { SsoDecodeError, type DecodedUser } from "./types";
  *  · encode/decode 와 encodeTime/decodeTime 두 쌍이 있다 → 시각이 함께 실리는
  *    변형이 존재한다. 만료 검사를 붙일 자리가 거기다.
  *
- * ── 모르는 것 (SecuBase.java 와 ssoLoginService.jsp 를 받지 못했다) ────────
- *  · 알고리즘 자체. Secu 는 baseKey 만 고르고 실제 암복호화는 부모 클래스
- *    SecuBase 에 있는데 그 파일이 없다.
- *  · privateKey 와 userInfo 의 관계 — 후보 셋
- *      (A) userInfo 를 baseKey 로 풀면 되고 key 는 무결성 확인용
- *      (B) key 를 풀면 세션키가 나오고 그것으로 userInfo 를 푼다
- *      (C) 둘 다 baseKey 로 풀리는 독립된 값
+ * ── 나중에 알아낸 것 (레거시 운영 코드의 `rsaprivkey8`) ───────────────────
+ *  레거시 서버가 **RSA 개인키**를 들고 있었다. 대칭키(baseKey)만으로 푸는 구조가
+ *  아니라는 뜻이다 — 위 후보 중 (B)에 해당하는 하이브리드 암호로 보인다.
+ *
+ *      트레이의 key      = 세션키를 서버 공개키로 암호화한 것
+ *      트레이의 userInfo = 그 세션키로 암호화한 사용자 정보
+ *
+ *  그래서 SSO_RSA_PRIVATE_KEY 가 설정돼 있으면 RSA 계열 전략을 **먼저** 돌린다.
+ *  세션키를 푼 뒤 대칭 알고리즘(모드·IV)까지는 여전히 확정되지 않아 몇 가지를
+ *  차례로 시도하고, 통한 조합을 추적(trace)에 남긴다 — 그것이 곧 규격 확인이다.
+ *
+ * ── 아직 모르는 것 ───────────────────────────────────────────────────────
+ *  · RSA 패딩 (PKCS#1 v1.5 인지 OAEP 인지) — 세 가지를 차례로 시도한다.
+ *  · 대칭 알고리즘·모드·IV 위치 — 네 가지 조합을 시도한다.
  *  · 평문의 필드 이름 (epid / EPID / knoxId …)
- *  · 시각 필드의 형식과 허용 오차
+ *  · 시각 필드의 형식과 허용 오차 (encodeTime 계열이라면)
  *
- * ── 지금 하고 있는 것 ─────────────────────────────────────────────────────
- *  「단순 인코딩」을 가정하고 후보 전략을 순서대로 시도해, EPID 가 나오는 첫
- *  전략을 채택한다. 실제 트레이에 한 번 붙여 보면 어느 전략이 통하는지(또는
- *  전부 실패하는지)가 그대로 드러나고, 그것이 담당자에게 보낼 질문의 근거가 된다.
- *  → docs/SSO_KNOX_PROTOCOL.md
- *
- * ⚠ 이 가정은 **페이로드의 무결성을 확인하지 않는다.** userInfo 가 실제로
- *   base64 평문이라면 누구든 임의의 EPID 로 위조할 수 있다. 그래서 운영 빌드에서는
- *   ssoServerEnv.allowUnverifiedPayload 가 막고 있다 (env.ts 참고).
+ * ⚠ **RSA 복호화가 성공해도 위조를 막는 것은 아니다.** 공개키는 공개된 값이라
+ *   그것을 가진 사람은 누구든 페이로드를 만들 수 있다 — 기밀성이지 인증이 아니다.
+ *   그래서 운영 빌드의 게이트(ssoServerEnv.allowUnverifiedPayload)는 그대로 둔다.
+ *   다만 RSA 키가 설정돼 있으면 **평문 전략은 아예 닫는다** — 진짜 키가 있는데도
+ *   base64 평문을 받아 주면 그쪽이 그대로 위조 통로가 되기 때문이다.
  *
  * ⇒ 규격이 오면 **이 파일만** 고친다. 시그니처는 고정이다.
  *      decodeKnoxPayload(payload) => Promise<DecodedUser>
@@ -51,11 +61,50 @@ import { SsoDecodeError, type DecodedUser } from "./types";
 const MAX_FIELD = 8 * 1024;
 
 /**
- * 「단순 인코딩」 후보. 위에서부터 시도하고 EPID 가 나오는 첫 번째를 채택한다.
+ * 한 번의 디코딩 시도가 공유하는 값.
  *
- * 실 규격을 받으면 이 배열 전체가 secuDecode 한 줄로 바뀐다.
+ * RSA 로 세션키를 푸는 일은 여러 전략이 똑같이 필요로 하므로 한 번만 하고
+ * 결과(성공이든 실패든)를 나눠 쓴다. 실패 이유도 그대로 실어 두어야 전략마다
+ * 「왜 못 했는지」를 각각 적을 수 있다.
  */
-const STRATEGIES: {
+interface DecodeContext {
+  userInfo: string;
+  /** 트레이가 준 `key` 필드. 레거시 POST 파라미터 이름이 privateKey 였다. */
+  privateKey: string;
+  session: SessionKey;
+  /**
+   * 마지막으로 통한 세션키 후보의 설명. 전략이 채워 두면 detail() 이 읽어
+   * 추적에 남긴다 — 어느 조합이 맞았는지가 이 작업의 결과물이다.
+   */
+  hit?: string;
+}
+
+/**
+ * RSA 로 푼 세션키 **후보들**. error 가 차 있으면 대칭 전략은 전부 건너뛴다.
+ *
+ * 후보가 여럿인 이유: 푼 결과가 곧바로 키일 수도, 키를 base64·hex 로 적은
+ * 문자열일 수도 있다. 규격을 모르는 동안에는 하나만 고르지 않고 전부 시험한다.
+ */
+type SessionKey =
+  | { ok: true; candidates: SessionKeyCandidate[] }
+  | { ok: false; error: string };
+
+interface SessionKeyCandidate {
+  bytes: Uint8Array;
+  /** 이 후보를 어떻게 얻었는지 — 통한 조합이 곧 규격이라 추적에 남긴다. */
+  how: string;
+}
+
+/**
+ * 후보 전략. 위에서부터 시도하고 EPID 가 나오는 첫 번째를 채택한다.
+ *
+ * **순서가 곧 보안 결정이다.** RSA 계열을 먼저 두고, 평문 계열은 RSA 키가
+ * 없을 때만 열린다 (buildStrategies). 진짜 키를 들고도 base64 평문을 받아 주면
+ * 그 경로가 위조 통로가 된다.
+ *
+ * 규격이 확정되면 이 배열 전체가 secuDecode 한 줄로 바뀐다.
+ */
+interface Strategy {
   name: string;
   /**
    * 이 전략을 **시도조차 할 수 없는** 이유. null 이면 시도할 수 있다.
@@ -64,15 +113,46 @@ const STRATEGIES: {
    * 앞은 환경변수 문제, 뒤는 규격 문제 — 진단에서 이 둘을 섞으면 엉뚱한 곳을
    * 고치게 된다 (진단 3단계의 전략 표에 그대로 나온다).
    */
-  blocked?: (privateKey: string) => string | null;
-  run: (userInfo: string, privateKey: string) => string | null;
-}[] = [
+  blocked?: (ctx: DecodeContext) => string | null;
+  run: (ctx: DecodeContext) => string | null;
+  /** 성공했을 때 추적에 남길 한 줄 — 어느 조합이 통했는지가 곧 규격이다. */
+  detail?: (ctx: DecodeContext) => string | undefined;
+}
+
+/** RSA 개인키가 필요한 전략들. 세션키를 푼 뒤 대칭 조합을 하나씩 시험한다. */
+const RSA_STRATEGIES: Strategy[] = [
+  // (B) key → 세션키 → userInfo. 모드·IV 위치만 다른 네 갈래다.
+  symStrategy("rsa-key→aes-cbc-iv", (data, key) => aesDecrypt(data, key, "cbc", "prefix")),
+  symStrategy("rsa-key→aes-cbc-zero", (data, key) => aesDecrypt(data, key, "cbc", "zero")),
+  symStrategy("rsa-key→aes-ecb", (data, key) => aesDecrypt(data, key, "ecb", "none")),
+  symStrategy("rsa-key→xor", (data, key) => bytesToText(xor(data, key))),
+
+  // userInfo 자체를 개인키로 푸는 경우 (짧은 페이로드라면 가능하다).
+  {
+    name: "rsa-userinfo",
+    blocked: () => (rsaKey() ? null : "SSO_RSA_PRIVATE_KEY 가 없습니다 (환경변수 문제)"),
+    run: (ctx) => {
+      for (const o of rsaDecryptAll(wb64ToBytes(ctx.userInfo))) {
+        const text = bytesToText(o.bytes);
+        if (text) {
+          ctx.hit = `rsa-${o.padding}`;
+          return text;
+        }
+      }
+      return null;
+    },
+    detail: (ctx) => ctx.hit,
+  },
+];
+
+/** RSA 키가 없을 때만 여는 「단순 인코딩」 후보. */
+const PLAIN_STRATEGIES: Strategy[] = [
   // 그대로 JSON/쿼리스트링인 경우. 가장 먼저 보는 이유는 base64 디코딩이
   // 아무 문자열이나 받아 쓰레기를 뱉기 때문이다 — 평문 판정을 먼저 끝낸다.
-  { name: "raw-plain", run: (u) => u },
+  { name: "raw-plain", run: (ctx) => ctx.userInfo },
 
   // web-safe base64 → UTF-8
-  { name: "wb64-plain", run: (u) => wb64ToText(u) },
+  { name: "wb64-plain", run: (ctx) => wb64ToText(ctx.userInfo) },
 
   // base64 디코딩 후 baseKey(SSO_DECODE_KEY) 로 반복 XOR — 후보 (A)/(C)
   {
@@ -81,23 +161,60 @@ const STRATEGIES: {
       baseKeyBytes()
         ? null
         : "SSO_DECODE_KEY 가 비어 있거나 32바이트로 되돌려지지 않습니다 (환경변수 문제)",
-    run: (u) => {
+    run: (ctx) => {
       const key = baseKeyBytes();
-      return key ? bytesToText(xor(wb64ToBytes(u), key)) : null;
+      return key ? bytesToText(xor(wb64ToBytes(ctx.userInfo), key)) : null;
     },
   },
 
-  // base64 디코딩 후 privateKey 를 키로 반복 XOR — 후보 (B)
+  // base64 디코딩 후 트레이가 준 key 를 그대로 키로 반복 XOR — 후보 (B)의 평문판
   {
     name: "wb64-xor-privatekey",
-    blocked: (k) =>
-      wb64ToBytes(k).length > 0 ? null : "트레이가 준 key 가 비어 있거나 base64 가 아닙니다",
-    run: (u, k) => {
-      const key = wb64ToBytes(k);
-      return key.length > 0 ? bytesToText(xor(wb64ToBytes(u), key)) : null;
+    blocked: (ctx) =>
+      wb64ToBytes(ctx.privateKey).length > 0
+        ? null
+        : "트레이가 준 key 가 비어 있거나 base64 가 아닙니다",
+    run: (ctx) => {
+      const key = wb64ToBytes(ctx.privateKey);
+      return key.length > 0 ? bytesToText(xor(wb64ToBytes(ctx.userInfo), key)) : null;
     },
   },
 ];
+
+/**
+ * 이번 시도에 쓸 전략 목록.
+ *
+ * RSA 개인키가 설정돼 있으면 평문 전략을 **닫는다**. 「혹시 모르니 남겨 두자」가
+ * 곧 위조 통로다 — 공격자는 항상 가장 약한 전략을 고른다.
+ */
+function buildStrategies(): { list: Strategy[]; plainClosed: boolean } {
+  if (rsaKey()) return { list: RSA_STRATEGIES, plainClosed: true };
+  return { list: [...PLAIN_STRATEGIES, ...RSA_STRATEGIES], plainClosed: false };
+}
+
+/** 세션키로 userInfo 를 푸는 전략을 만든다 — 대칭 조합만 갈아 끼운다. */
+function symStrategy(
+  name: string,
+  decrypt: (data: Uint8Array, key: Uint8Array) => string | null,
+): Strategy {
+  return {
+    name,
+    blocked: (ctx) => (ctx.session.ok ? null : ctx.session.error),
+    run: (ctx) => {
+      if (!ctx.session.ok) return null;
+      const data = wb64ToBytes(ctx.userInfo);
+      for (const c of ctx.session.candidates) {
+        const text = decrypt(data, c.bytes);
+        if (text) {
+          ctx.hit = c.how;
+          return text;
+        }
+      }
+      return null;
+    },
+    detail: (ctx) => ctx.hit,
+  };
+}
 
 export interface KnoxPayload {
   userInfo: string;
@@ -164,8 +281,26 @@ async function runStrategies(
   payload: KnoxPayload,
   trace: DecodeTrace,
 ): Promise<DecodedUser> {
-  for (const s of STRATEGIES) {
-    const blocked = s.blocked?.(payload.privateKey) ?? null;
+  const ctx: DecodeContext = {
+    userInfo: payload.userInfo,
+    privateKey: payload.privateKey,
+    session: openSessionKey(payload.privateKey),
+  };
+  const { list, plainClosed } = buildStrategies();
+
+  // 닫아 둔 것도 추적에 남긴다 — 「왜 raw-plain 이 안 보이지?」로 헤매지 않게.
+  if (plainClosed) {
+    for (const s of PLAIN_STRATEGIES) {
+      record(trace, {
+        strategy: s.name,
+        outcome: "skipped",
+        detail: "RSA 개인키가 설정돼 있어 평문 전략은 닫혀 있습니다 (위조 방지)",
+      });
+    }
+  }
+
+  for (const s of list) {
+    const blocked = s.blocked?.(ctx) ?? null;
     if (blocked) {
       record(trace, { strategy: s.name, outcome: "skipped", detail: blocked });
       continue;
@@ -173,7 +308,7 @@ async function runStrategies(
 
     let text: string | null;
     try {
-      text = s.run(payload.userInfo, payload.privateKey);
+      text = s.run(ctx);
     } catch (e) {
       record(trace, {
         strategy: s.name,
@@ -215,6 +350,7 @@ async function runStrategies(
     record(trace, {
       strategy: s.name,
       outcome: "adopted",
+      detail: s.detail?.(ctx),
       claimKeys: Object.keys(claims).slice(0, 24),
     });
     trace.adopted = s.name;
@@ -230,8 +366,8 @@ async function runStrategies(
   }
 
   throw new SsoDecodeError(
-    "userInfo 에서 EPID 를 얻지 못했습니다. 「단순 인코딩」 가정이 틀렸을 수 있습니다 — " +
-      "SecuBase.java 규격이 필요합니다. 시도한 전략: " +
+    "userInfo 에서 EPID 를 얻지 못했습니다. 가정한 조합 중 맞는 것이 없습니다 — " +
+      "SecuBase.java(또는 ssoLoginService.jsp) 규격이 필요합니다. 시도한 전략: " +
       summarize(trace),
   );
 }
@@ -367,6 +503,285 @@ function xor(data: Uint8Array, key: Uint8Array): Uint8Array {
   const out = new Uint8Array(data.length);
   for (let i = 0; i < data.length; i++) out[i] = data[i] ^ key[i % key.length];
   return out;
+}
+
+// ---------------------------------------------------------------------------
+// RSA — 레거시의 rsaprivkey8 에 해당하는 자리
+// ---------------------------------------------------------------------------
+
+/**
+ * RSA 패딩 후보. 레거시 Java 의 기본값(`RSA/ECB/PKCS1Padding`)을 먼저 본다.
+ *
+ * ⚠ **성공한 첫 패딩을 정답으로 삼으면 안 된다.** OpenSSL 3 은 PKCS#1 v1.5
+ * 복호화에 「암묵적 거부(implicit rejection)」를 적용해서, 패딩이 틀려도 예외를
+ * 던지지 않고 **임의 길이의 쓰레기**를 돌려준다 (Bleichenbacher 대응).
+ * 실제로 OAEP 암문을 pkcs1 으로 풀면 3바이트짜리 쓰레기가 나온다.
+ *
+ * 그래서 모든 패딩을 다 돌려 후보로 모으고, 판정은 그다음 단계(세션키 길이 ·
+ * 대칭 복호화 결과)에 맡긴다.
+ */
+const RSA_PADDINGS = [
+  { name: "pkcs1", opts: { padding: cryptoConstants.RSA_PKCS1_PADDING } },
+  {
+    name: "oaep-sha1",
+    opts: { padding: cryptoConstants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha1" },
+  },
+  {
+    name: "oaep-sha256",
+    opts: { padding: cryptoConstants.RSA_PKCS1_OAEP_PADDING, oaepHash: "sha256" },
+  },
+] as const;
+
+/** 파싱된 개인키를 프로세스 수명 동안 재사용한다. 환경변수는 런타임에 안 바뀐다. */
+let rsaCache: { raw: string; key: KeyObject | null } | null = null;
+
+function rsaKey(): KeyObject | null {
+  const raw = ssoServerEnv.rsaPrivateKey.trim();
+  if (!raw) return null;
+  if (rsaCache?.raw === raw) return rsaCache.key;
+
+  let key: KeyObject | null = null;
+  try {
+    key = parseRsaPrivateKey(raw, ssoServerEnv.rsaPrivateKeyPassphrase).key;
+  } catch {
+    key = null; // 이유는 진단 화면이 parseRsaPrivateKey 를 직접 불러 보여 준다
+  }
+  rsaCache = { raw, key };
+  return key;
+}
+
+/** 개인키로 푼 결과 — 패딩마다 하나씩. 어느 것이 진짜인지는 여기서 못 정한다. */
+function rsaDecryptAll(data: Uint8Array): { bytes: Uint8Array; padding: string }[] {
+  const key = rsaKey();
+  if (!key || data.length === 0) return [];
+
+  const out: { bytes: Uint8Array; padding: string }[] = [];
+  for (const p of RSA_PADDINGS) {
+    try {
+      const plain = privateDecrypt({ key, ...p.opts }, Buffer.from(data));
+      out.push({ bytes: new Uint8Array(plain), padding: p.name });
+    } catch {
+      /* OAEP 는 틀리면 예외다. pkcs1 은 예외 없이 쓰레기를 준다 — 위 주석 참고 */
+    }
+  }
+  return out;
+}
+
+/**
+ * 트레이가 준 key 를 풀어 대칭 세션키를 얻는다.
+ *
+ * 푼 결과가 곧바로 키 길이(16·24·32바이트)면 그대로 쓰고, 아니면 텍스트로 보고
+ * base64·hex·그대로를 차례로 시험한다. 사내 코드에서 「16글자 문자열을 키로
+ * 쓴다」가 드물지 않아 마지막 후보를 남겨 두었다.
+ */
+function openSessionKey(privateKeyField: string): SessionKey {
+  if (!rsaKey()) return { ok: false, error: "SSO_RSA_PRIVATE_KEY 가 없습니다 (환경변수 문제)" };
+
+  const cipher = wb64ToBytes(privateKeyField);
+  if (cipher.length === 0) {
+    return { ok: false, error: "트레이가 준 key 가 비어 있거나 base64 가 아닙니다" };
+  }
+
+  const opened = rsaDecryptAll(cipher);
+  if (opened.length === 0) {
+    return {
+      ok: false,
+      error:
+        "개인키로 key 를 풀지 못했습니다 (pkcs1 · oaep-sha1 · oaep-sha256 모두 실패). " +
+        "키가 이 서비스용이 아니거나, key 가 RSA 로 싸인 값이 아닙니다.",
+    };
+  }
+
+  const candidates = opened.flatMap((o) =>
+    sessionKeyCandidates(o.bytes).map((c) => ({
+      bytes: c.bytes,
+      how: `rsa-${o.padding} · 세션키 ${c.how}`,
+    })),
+  );
+  if (candidates.length > 0) return { ok: true, candidates: dedupeKeys(candidates) };
+
+  return {
+    ok: false,
+    error:
+      "개인키로 풀리기는 했지만 어느 패딩에서도 대칭키 길이(16·24·32바이트)가 나오지 않았습니다 — " +
+      opened.map((o) => `${o.padding} ${o.bytes.length}바이트`).join(" · "),
+  };
+}
+
+/** 푼 바이트열을 대칭키로 볼 수 있는 후보들. 앞에서부터 그럴듯한 순서다. */
+function sessionKeyCandidates(bytes: Uint8Array): SessionKeyCandidate[] {
+  const out: SessionKeyCandidate[] = [];
+  const keyish = (b: Uint8Array) => b.length === 16 || b.length === 24 || b.length === 32;
+
+  if (keyish(bytes)) out.push({ bytes, how: `원문 ${bytes.length}바이트` });
+
+  const text = tryUtf8(bytes);
+  if (text) {
+    const t = text.trim();
+    const ascii = new Uint8Array(Buffer.from(t, "utf8"));
+    if (keyish(ascii)) out.push({ bytes: ascii, how: `문자열 ${ascii.length}자` });
+
+    for (const [enc, label] of [
+      ["base64", "base64"],
+      ["hex", "hex"],
+    ] as const) {
+      try {
+        const dec = new Uint8Array(Buffer.from(t, enc));
+        if (keyish(dec)) out.push({ bytes: dec, how: `${label} → ${dec.length}바이트` });
+      } catch {
+        /* 그 표기가 아니면 넘어간다 */
+      }
+    }
+  }
+
+  return out;
+}
+
+/** 같은 바이트열이 여러 경로로 나올 수 있다 (32바이트가 그대로 32자 문자열인 경우). */
+function dedupeKeys(list: SessionKeyCandidate[]): SessionKeyCandidate[] {
+  const seen = new Set<string>();
+  return list.filter((c) => {
+    const k = Buffer.from(c.bytes).toString("hex");
+    if (seen.has(k)) return false;
+    seen.add(k);
+    return true;
+  });
+}
+
+/**
+ * 세션키로 AES 복호화.
+ *
+ * [iv] — prefix: 암호문 앞 16바이트가 IV · zero: 0으로 채운 IV · none: ECB.
+ * 패딩은 PKCS#7 을 먼저 보고, 거기서 예외가 나면 패딩 없이 풀어 꼬리를 직접
+ * 걷어낸다 (제로 패딩을 쓰는 구현이 있다).
+ */
+function aesDecrypt(
+  data: Uint8Array,
+  key: Uint8Array,
+  mode: "cbc" | "ecb",
+  iv: "prefix" | "zero" | "none",
+): string | null {
+  const bits = key.length * 8;
+  if (bits !== 128 && bits !== 192 && bits !== 256) return null;
+
+  let body = data;
+  let ivBytes = Buffer.alloc(0);
+  if (mode === "cbc") {
+    if (iv === "prefix") {
+      if (data.length <= 16) return null;
+      ivBytes = Buffer.from(data.slice(0, 16));
+      body = data.slice(16);
+    } else {
+      ivBytes = Buffer.alloc(16, 0);
+    }
+  }
+  if (body.length === 0 || body.length % 16 !== 0) return null;
+
+  const algo = `aes-${bits}-${mode}`;
+  for (const autoPad of [true, false]) {
+    try {
+      const d = createDecipheriv(algo, Buffer.from(key), mode === "ecb" ? null : ivBytes);
+      d.setAutoPadding(autoPad);
+      const out = Buffer.concat([d.update(Buffer.from(body)), d.final()]);
+      const text = bytesToText(autoPad ? out : stripPadding(new Uint8Array(out)));
+      if (text) return text;
+    } catch {
+      /* 패딩이 안 맞으면 다음 시도 */
+    }
+  }
+  return null;
+}
+
+/** PKCS#7 · 제로 패딩을 걷어낸다. 어느 쪽도 아니면 그대로 둔다. */
+function stripPadding(bytes: Uint8Array): Uint8Array {
+  if (bytes.length === 0) return bytes;
+  const last = bytes[bytes.length - 1];
+  if (last > 0 && last <= 16 && last <= bytes.length) {
+    const tail = bytes.slice(bytes.length - last);
+    if (tail.every((b) => b === last)) return bytes.slice(0, bytes.length - last);
+  }
+  let end = bytes.length;
+  while (end > 0 && bytes[end - 1] === 0) end--;
+  return bytes.slice(0, end);
+}
+
+function tryUtf8(bytes: Uint8Array): string | null {
+  try {
+    return new TextDecoder("utf-8", { fatal: true }).decode(bytes);
+  } catch {
+    return null;
+  }
+}
+
+export interface ParsedRsaKey {
+  key: KeyObject;
+  /** 어느 표기로 읽었는지 — 진단 화면에 그대로 보여 준다. */
+  notation: "PEM" | "PEM(\\n 이스케이프)" | "base64(PEM)" | "base64(DER PKCS#8)" | "base64(DER PKCS#1)";
+  /** 모듈러스 길이(비트). 2048 이 보통이다. */
+  bits: number;
+}
+
+/**
+ * SSO_RSA_PRIVATE_KEY 를 KeyObject 로.
+ *
+ * 표기를 네 가지 받는 이유는 넣는 곳이 제각각이기 때문이다. Vercel 대시보드는
+ * 여러 줄을 그대로 받지만 `.env` 파일은 못 받고, 사내에서 건네받는 형태도
+ * `.pem`·`.key`·base64 문자열로 갈린다. **base64 로 감싸 넣는 것을 권한다** —
+ * 줄바꿈이 사라져도 깨지지 않는 유일한 형태다.
+ */
+export function parseRsaPrivateKey(raw: string, passphrase = ""): ParsedRsaKey {
+  const s = raw.trim();
+  if (!s) throw new SsoDecodeError("SSO_RSA_PRIVATE_KEY 가 비어 있습니다.");
+
+  const pass = passphrase.trim() ? { passphrase: passphrase.trim() } : {};
+  const attempts: { notation: ParsedRsaKey["notation"]; make: () => KeyObject }[] = [];
+
+  if (s.includes("-----BEGIN")) {
+    const escaped = /\\n/.test(s);
+    const pem = s.replace(/\\n/g, "\n").replace(/\r\n/g, "\n");
+    attempts.push({
+      notation: escaped ? "PEM(\\n 이스케이프)" : "PEM",
+      make: () => createPrivateKey({ key: pem, format: "pem", ...pass }),
+    });
+  } else {
+    const der = Buffer.from(s.replace(/\s+/g, ""), "base64");
+    const asText = der.toString("utf8");
+    if (asText.includes("-----BEGIN")) {
+      attempts.push({
+        notation: "base64(PEM)",
+        make: () => createPrivateKey({ key: asText, format: "pem", ...pass }),
+      });
+    } else {
+      attempts.push({
+        notation: "base64(DER PKCS#8)",
+        make: () => createPrivateKey({ key: der, format: "der", type: "pkcs8", ...pass }),
+      });
+      attempts.push({
+        notation: "base64(DER PKCS#1)",
+        make: () => createPrivateKey({ key: der, format: "der", type: "pkcs1", ...pass }),
+      });
+    }
+  }
+
+  let last = "";
+  for (const a of attempts) {
+    try {
+      const key = a.make();
+      if (key.asymmetricKeyType !== "rsa") {
+        throw new Error(`RSA 가 아닌 ${key.asymmetricKeyType} 키입니다.`);
+      }
+      const bits = key.asymmetricKeyDetails?.modulusLength ?? 0;
+      return { key, notation: a.notation, bits };
+    } catch (e) {
+      last = e instanceof Error ? e.message : "알 수 없는 오류";
+    }
+  }
+
+  throw new SsoDecodeError(
+    `SSO_RSA_PRIVATE_KEY 를 개인키로 읽지 못했습니다 (${last}). PEM 그대로, 개행을 ` +
+      "\\n 으로 이스케이프한 PEM, PEM 또는 DER 을 base64 로 감싼 값을 받습니다. " +
+      "암호화된 PEM 이면 SSO_RSA_PRIVATE_KEY_PASSPHRASE 도 넣으세요.",
+  );
 }
 
 function baseKeyBytes(): Uint8Array | null {

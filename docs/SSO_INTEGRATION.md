@@ -256,7 +256,8 @@ Apple 네이티브 로그인으로 받은 ID 토큰을 서버가 검증하고, �
 NEXT_PUBLIC_SSO_MODE=real
 NEXT_PUBLIC_SSO_TRAY_WS_URL=wss://localhost:29283
 NEXT_PUBLIC_SSO_TRAY_APP_CODE=<발급받은 코드>
-SSO_DECODE_KEY=<32바이트 키 (base64 권장)>
+SSO_RSA_PRIVATE_KEY=<rsaprivkey8 — base64 로 감싸 넣기 권장>
+SSO_DECODE_KEY=<SecuBase 32바이트 대칭키 — RSA 를 쓰면 불필요>
 SSO_ALLOW_AUTO_CREATE=false
 ```
 

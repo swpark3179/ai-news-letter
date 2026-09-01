@@ -160,7 +160,8 @@ node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))"
 | `NEXT_PUBLIC_SSO_MODE` | `mock` | 사내 SSO 실연동 후 `real` 로 (→ 9절). **넣지 않으면 목업으로 돕니다** |
 | `NEXT_PUBLIC_SSO_TRAY_WS_URL` | — | `real` 모드 필수 — 트레이 `wss://` 주소 |
 | `NEXT_PUBLIC_SSO_TRAY_APP_CODE` | — | `real` 모드 필수 — 이 서비스용으로 발급받은 코드 |
-| `SSO_DECODE_KEY` | — | `real` 모드 필수 — SecuBase baseKey (base64 권장) |
+| `SSO_RSA_PRIVATE_KEY` | — | `real` 모드 필수 — `rsaprivkey8`. base64 로 감싸 넣으세요 |
+| `SSO_DECODE_KEY` | — | SecuBase 의 32바이트 대칭키. RSA 를 쓰면 필요 없습니다 |
 | `SSO_ALLOW_UNVERIFIED_PAYLOAD` | — | `real` 모드 운영 빌드가 여기서 멈춥니다 (→ 9.3) |
 | `SSO_DEBUG_TOKEN` | — | 운영에서 `/login/diag` 를 여는 열쇠. 비우면 관리자 세션으로만 열립니다 |
 | `LLM_PROVIDER` | `openai` | 관리자 화면에서 **트렌드** 수집을 돌릴 때. 비우면 키가 있는 쪽을 자동 선택 |
@@ -407,7 +408,26 @@ Hobby 에서 `0 * * * *` 처럼 더 자주 도는 표현식은 **배포 자체�
 |---|---|---|
 | 트레이 `wss://` 주소 | 인증 모듈 담당 부서. 레거시 참고값 `wss://localhost:29283` | 로그인 화면이 `SSO_CONFIG_MISSING` |
 | 이 서비스용 앱 코드 | 트레이 담당자에게 **새로 발급** — 레거시 교육포털의 `KCC60TRAY0109` 를 그대로 쓰면 안 됩니다 | 같음 |
-| SecuBase baseKey (32바이트) | 인증 담당자. `SSO_DECODE_KEY` | 디코딩 실패 (401) |
+| 서버 RSA 개인키 (`rsaprivkey8`) | 레거시 SSO 서버. `SSO_RSA_PRIVATE_KEY` | 디코딩 실패 (401) |
+
+> **`SSO_DECODE_KEY` 와 `SSO_RSA_PRIVATE_KEY` 는 다른 물건입니다.** 앞은 SecuBase 의
+> **32바이트 대칭키**, 뒤는 트레이가 준 `key` 를 푸는 **개인키**입니다. 레거시 서버가
+> `rsaprivkey8` 을 들고 있었으므로 실제로 쓰이는 것은 뒤쪽입니다 —
+> [SSO_KNOX_PROTOCOL.md](SSO_KNOX_PROTOCOL.md) 의 ⑤. 개인키를 `SSO_DECODE_KEY` 에
+> 넣으면 길이 검사(32바이트)에서 거절되고 진단 1단계가 `fail` 로 알려 줍니다.
+
+**개인키를 Vercel 에 넣는 형태** — PEM 을 통째로 base64 로 감싸는 것을 권합니다.
+줄바꿈이 사라져도 깨지지 않는 유일한 형태입니다.
+
+```bash
+base64 -w0 rsaprivkey8.pem      # 리눅스
+base64 -i rsaprivkey8.pem       # macOS
+```
+
+PEM 그대로(여러 줄), 개행을 `\n` 으로 이스케이프한 PEM, DER 을 base64 로 넣은 것도
+모두 받습니다. 어떤 표기로 읽혔는지는 진단 1단계의 `SSO_RSA_PRIVATE_KEY` 항목에
+`RSA 2048비트 · base64(PEM) 표기` 처럼 나옵니다. 암호화된 PEM 이면
+`SSO_RSA_PRIVATE_KEY_PASSPHRASE` 도 함께 넣으세요.
 
 ### 9.2 Vercel 환경변수 (Production)
 
@@ -418,7 +438,9 @@ Settings → Environment Variables 에 넣습니다.
 | `NEXT_PUBLIC_SSO_MODE` | `real` | 이 한 줄이 목업/실 모드를 가릅니다 |
 | `NEXT_PUBLIC_SSO_TRAY_WS_URL` | 받은 `wss://…` 주소 | 기본값 없음 — 비우면 배포 설정 오류로 알립니다 |
 | `NEXT_PUBLIC_SSO_TRAY_APP_CODE` | 발급받은 앱 코드 | 같음 |
-| `SSO_DECODE_KEY` | baseKey (**base64 권장**) | `.env` 에 제어문자를 담을 수 없어 8진 이스케이프보다 안전합니다 |
+| `SSO_RSA_PRIVATE_KEY` | `rsaprivkey8` (**base64 로 감싸 넣기 권장**) | **Sensitive 로 저장하세요.** 트레이가 준 `key` 를 푸는 개인키입니다 |
+| `SSO_RSA_PRIVATE_KEY_PASSPHRASE` | 개인키 암호 | 암호화된 PEM 일 때만 |
+| `SSO_DECODE_KEY` | SecuBase baseKey (32바이트, base64 권장) | RSA 를 쓰면 **필요 없습니다.** 넣을 거면 반드시 32바이트 |
 | `SSO_ALLOW_UNVERIFIED_PAYLOAD` | `1` | ⚠ 아래 9.3 을 **반드시** 읽고 넣으세요 |
 | `SSO_ALLOW_AUTO_CREATE` | 넣지 않음 (real 기본값 `false`) | 방침이 「등록된 사용자만」입니다 |
 | `SSO_DEBUG_TOKEN` | 임의의 문자열 | 운영에서 `/login/diag` 를 여는 유일한 열쇠입니다 |
@@ -431,9 +453,12 @@ node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
 ### 9.3 ⚠ `SSO_ALLOW_UNVERIFIED_PAYLOAD` 를 넣기 전에
 
 SecuBase 복호화 규격을 아직 받지 못해 `src/lib/auth/sso/decode-knox.ts` 는
-「단순 인코딩」을 가정하고 있습니다 — 즉 **페이로드 위조를 막지 못합니다.**
-userInfo 가 실제로 base64 평문이라면 누구든 임의의 EPID 로 페이로드를 만들어
-등록된 아무 사람으로나 로그인할 수 있습니다.
+후보 조합을 시험하는 단계이고, **페이로드 위조를 막지 못합니다.**
+
+개인키를 넣으면 평문 전략이 닫혀 한 단계 나아지지만 그것으로 충분하지는 않습니다 —
+**공개키는 공개된 값**이라 트레이가 깔린 PC 를 가진 사람은 페이로드를 만들 수
+있습니다. RSA 암호화가 주는 것은 기밀성이지 인증이 아닙니다. 인증은 서명·MAC
+또는 `encodeTime` 만료 검사가 붙어야 생깁니다.
 
 그래서 운영 빌드는 이 값을 `1` 로 명시하지 않는 한 실 모드 로그인을 **거절합니다.**
 규격을 받아 `decode-knox.ts` 를 채우기 전까지는 사내망 안에서만, 전환을 확인하는
@@ -447,9 +472,11 @@ userInfo 가 실제로 base64 평문이라면 누구든 임의의 EPID 로 페�
 ```
 1) /login/diag?token=<SSO_DEBUG_TOKEN> 을 엽니다
 2) 1단계  모드 real · 트레이/앱 코드가 채워짐 · build-sync 가 ok
+          SSO_RSA_PRIVATE_KEY 가 「RSA 2048비트 · … 표기」로 ok
           ← 여기서 mock 이면 재배포가 안 된 것입니다
 3) 2단계  트레이 핸드셰이크 — 소켓이 열리는지, 어떤 프레임이 오는지
-4) 3단계  디코딩 드라이런 — 어느 전략이 통하는지, 클레임 키가 무엇인지
+4) 3단계  디코딩 드라이런 — 어느 전략·어느 조합이 통하는지, 클레임 키가 무엇인지
+          (rsa-key→aes-cbc-iv 처럼 통한 조합이 그대로 규격 확인이 됩니다)
 5) /login 에서 실제로 한 번 로그인
 ```
 
