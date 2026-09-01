@@ -1,4 +1,4 @@
--- 0013_showcase.sql
+-- 0014_showcase.sql
 -- 쇼케이스 : news.hada.io/show 수집
 --
 --   메인 목록(/)이 "읽을 거리"를 모으는 곳이라면 /show 는 사람들이 **직접 만든

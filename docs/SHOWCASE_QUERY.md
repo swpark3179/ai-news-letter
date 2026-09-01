@@ -4,10 +4,10 @@
 정리한 문서입니다. 특히 **모바일 앱에서 조회하려면 무엇이 필요한지**를 다룹니다.
 
 > **먼저 알아야 할 것**
-> 앱은 Supabase 를 **직접 조회할 수 없습니다.** 모든 조회는 이 서버의 API 를
-> 거쳐야 합니다. 이유는 [3-③](#3-모바일--서버-api-를-거쳐야-한다) 에 있습니다.
-> 그 읽기 API 는 **아직 만들어져 있지 않습니다** — 무엇을 만들어야 하는지는
-> [5장](#5-모바일-읽기-api-를-만들-때-제안)에 적어 두었습니다.
+> 앱은 Supabase 를 직접 읽습니다. 다만 **표가 아니라 전용 뷰만** 열려 있고
+> (`0013_mobile_read_access.sql`), `showcase_items` 는 표라서 **아직 닫혀 있습니다.**
+> 앱에서 읽게 하려면 REST 라우트가 아니라 **뷰를 하나 더 열면 됩니다** —
+> 그대로 붙여 쓸 SQL 을 [5장](#5-쇼케이스를-앱에서-읽게-하려면)에 준비해 뒀습니다.
 
 ---
 
@@ -37,7 +37,7 @@
 
 ## 2. 어디에 쌓이나 — `showcase_items`
 
-스키마 원본은 [`supabase/migrations/0013_showcase.sql`](../supabase/migrations/0013_showcase.sql),
+스키마 원본은 [`supabase/migrations/0014_showcase.sql`](../supabase/migrations/0014_showcase.sql),
 타입은 `ShowcaseItemRow` ([`src/types/db.ts`](../src/types/db.ts)) 입니다.
 
 | 열 | 타입 | 의미 |
@@ -81,7 +81,7 @@
 |---|---|---|
 | ① 웹 화면 · 서버 컴포넌트 | `src/lib/data/` 의 조회 함수 | ✅ 권장 |
 | ② 운영·점검 | Supabase SQL Editor | ✅ |
-| ③ 모바일 앱 | Supabase 직접 조회 | ❌ **불가능** → 서버 API 필요 |
+| ③ 모바일 앱 | Supabase 직접 조회 (PostgREST) | ⚠️ **전용 뷰만** — 쇼케이스 뷰는 아직 없음 |
 
 ### ① 서버에서 조회 (웹 화면)
 
@@ -113,7 +113,7 @@ export async function getShowcaseItems(limit = 30): Promise<ShowcaseItemRow[]> {
   안 됩니다. 저장 후에는 항상 작성 시각으로 정렬합니다.
 
 `published_at desc where is_hidden = false` 부분 인덱스가 이 쿼리에 맞춰져
-있습니다(`0013_showcase.sql`).
+있습니다(`0014_showcase.sql`).
 
 ### ② SQL 로 직접 (운영·점검)
 
@@ -143,136 +143,135 @@ update public.showcase_items
  where url = 'https://news.hada.io/topic?id=32709';
 ```
 
-### ③ 모바일 — 서버 API 를 거쳐야 한다
+### ③ 모바일 — 전용 뷰를 통해서만
 
-**앱에서 Supabase 를 직접 조회하는 경로는 막혀 있습니다.** 코드를 잘못 써서가 아니라
-설계가 그렇습니다. [`supabase/migrations/0007_rls.sql`](../supabase/migrations/0007_rls.sql)
-이 이렇게 해 두었기 때문입니다.
+앱은 웹 API 를 거치지 않고 **Supabase(PostgREST)를 직접 읽습니다.**
+[`supabase/migrations/0013_mobile_read_access.sql`](../supabase/migrations/0013_mobile_read_access.sql)
+이 그 통로를 열어 두었습니다.
+
+`0007_rls.sql` 은 원래 「RLS 를 켜고 정책은 하나도 만들지 않는」 구성이었고, 그
+파일 마지막 줄이 이 변경을 예고해 두었습니다 — *"나중에 클라이언트 직접 조회가
+필요해지면 그때 select 정책을 명시적으로 추가한다."* 모바일 앱이 그 경우입니다.
+
+핵심은 **표가 아니라 뷰만 연다**는 것입니다.
+
+| anon 에게 열린 것 | 닫힌 채로 남는 것 |
+|---|---|
+| `mobile_feed` · `mobile_trend_detail` · `mobile_issue` 의 `SELECT` | **원본 표 전부** (`showcase_items` 포함) · `members` · `scraps` · `articles` · `comments` |
+
+anon 키는 앱 바이너리에 실려 사실상 공개된 값이라, 안전성이 전적으로 이 grant
+구성에서 나오기 때문입니다. 표에 grant 하면 PostgREST 가 그 표의 모든 컬럼·필터·
+정렬을 열어 주고, `is_hidden` 필터를 우회할 길도 생깁니다. 뷰만 열면 노출 범위가
+뷰 정의로 고정됩니다.
+
+**그래서 `showcase_items` 는 지금 앱에서 읽을 수 없습니다.** 표라서 닫혀 있습니다.
+읽게 하려면 뷰를 하나 더 열어야 합니다 — [5장](#5-쇼케이스를-앱에서-읽게-하려면).
+
+---
+
+## 4. 지금 앱이 읽을 수 있는 것
+
+| 뷰 | 내용 |
+|---|---|
+| `mobile_feed` | 목록 — `geek_news` + `trend_items` 를 같은 모양으로 정규화한 union. `type` 이 `geek` / `trend` |
+| `mobile_trend_detail` | 트렌드 상세 (`body` · `tags`) |
+| `mobile_issue` | 홈 마스트헤드 — 호수 · 최신 시각 · 오늘(KST) 건수 |
+
+**쇼케이스는 여기 없습니다.** 수집만 되고 있고 앱으로 나가는 통로는 아직 없습니다.
+
+읽기용 REST 라우트를 따로 만들지 않은 이유는 `0013` 커밋에 적혀 있습니다 — 목록을
+RSC 로 그리고 있어 라우트와 proxy 예외를 새로 만들어야 하고, 무엇보다 목록 행의
+지표 문구가 `src/lib/trendItem.ts` 와 두 벌이 되기 때문입니다. **쇼케이스도 같은
+판단을 따르는 편이 좋습니다 — API 가 아니라 뷰입니다.**
+
+앱이 거는 질의의 계약 원본은 모바일 저장소
+[`ai-news-letter-mobile`](https://github.com/swpark3179/ai-news-letter-mobile) 의
+`docs/03-api-contract.md` 입니다. **여기에 복사하지 마세요** — 두 벌이 갈립니다.
+
+---
+
+## 5. 쇼케이스를 앱에서 읽게 하려면
+
+> ⚠️ **아직 만들지 않았습니다.** 이번 작업 범위는 수집과 문서까지입니다.
+> 아래는 그대로 붙여 쓸 수 있게 준비해 둔 것입니다.
+
+### `mobile_feed` 에 합칠까, 뷰를 따로 둘까
+
+**따로 두는 것을 권합니다** (`mobile_showcase`).
+
+`mobile_feed` 의 union 에 `type='show'` 를 더하면, 홈이 이 뷰를 **필터 없이 시간
+역순으로 읽기** 때문에 **이미 배포된 앱 빌드의 홈 화면 내용이 그날로 바뀝니다.**
+앱에 탭이 생기기도 전에 쇼케이스 항목이 뉴스 사이에 섞여 나오는 것입니다.
+뷰를 따로 두면 기존 빌드는 영향을 받지 않고, 새 앱 버전이 탭을 붙일 때 읽으면
+됩니다. 나중에 앱이 준비되면 그때 `mobile_feed` 로 접어 넣어도 늦지 않습니다.
+
+### 붙일 마이그레이션 (`0015_mobile_showcase.sql`)
+
+`0013` 의 규칙을 그대로 따릅니다 — 컬럼 구성이 바뀌어도 다시 실행할 수 있게
+지우고 만들고, `security_invoker` 는 켜지 않으며(기본값), grant 는 스키마 단위가
+아니라 뷰 하나씩 명시합니다.
 
 ```sql
-alter table public.showcase_items enable row level security;
-revoke all on public.showcase_items from anon, authenticated;
+drop view if exists public.mobile_showcase;
+
+create view public.mobile_showcase as
+select
+    s.url                                          as key,
+    s.title                                        as title,
+    s.summary                                      as lede,
+    -- mobile_feed 의 meta 규칙과 같은 모양: "my.tool · 12 points · 댓글 3"
+    concat_ws(' · ',
+      nullif(btrim(coalesce(s.source_domain, '')), ''),
+      s.points || ' points',
+      '댓글 ' || s.comment_count
+    )                                              as meta,
+    s.published_at                                 as published_at,
+    -- mobile_feed 와 일부러 다른 곳. 긱뉴스는 요약과 댓글이 토픽 페이지에 있어
+    -- 그쪽을 열지만, 쇼케이스에서 사람들이 보고 싶은 것은 「만든 것」이다.
+    -- 다만 external_url 이 비어 있는 글도 있어 토픽 URL 로 떨어뜨린다.
+    coalesce(nullif(btrim(coalesce(s.external_url, '')), ''), s.url) as open_url,
+    coalesce(s.source_domain, '')                  as host,
+    s.submitter                                    as maker,
+    concat_ws(' ', s.title, s.summary)             as search_text
+  from public.showcase_items s
+  where s.is_hidden = false;   -- ← 뷰 안에 박아 우회할 길을 없앤다
+
+comment on view public.mobile_showcase is
+  '모바일 쇼케이스 목록 — 직접 만든 것 소개. anon SELECT 허용.';
+
+grant select on public.mobile_showcase to anon;
 ```
 
-- RLS 는 켜져 있고 **정책(policy)은 하나도 없습니다.** 정책이 없으면 `anon` ·
-  `authenticated` 롤의 모든 접근이 거부됩니다.
-- 이 서비스는 Supabase Auth 를 쓰지 않습니다. 로그인은 사내 SSO / 소셜 ID 토큰이고,
-  브라우저에도 앱에도 **Supabase 키를 일절 내려보내지 않습니다.**
-- 그래서 anon 키가 유출되어도 사내 콘텐츠가 새지 않습니다. 이 안전성이 「앱에서
-  직접 조회 불가」의 대가입니다.
+- `key` 와 `open_url` 을 나눈 것이 요점입니다. `key` 는 PK(토픽 URL)라 담기·중복
+  제거에 쓰고, `open_url` 은 실제로 열 주소입니다. 두 값이 같은 `mobile_feed` 와
+  다른 지점이니 계약 문서에 적어 두세요.
+- `where is_hidden = false` 를 **뷰 안에** 두는 것이 0013 의 방침입니다. 앱이 거는
+  필터에 맡기면 우회할 수 있습니다.
+- 뒤이어 [`supabase/VERIFY.sql`](../supabase/VERIFY.sql) 의 ⑪⑫ 기대값을
+  「뷰 4개 / anon grant 4행」으로 고치세요. ⑫ 는 anon 에게 무엇이 열려 있는지
+  보는 항목이라, 기대값을 갱신하지 않으면 검증이 무의미해집니다.
+- 앱 쪽 질의는 모바일 저장소의 `docs/03-api-contract.md` 에 적습니다.
 
-즉 앱이 할 수 있는 일은 **이 서버의 HTTP API 를 호출하는 것뿐**이고, 그 API 는
-아직 없습니다. 다음 장이 그것을 만드는 방법입니다.
+### 커서 페이지네이션
 
----
+무한 스크롤에서 `offset` 은 **항목을 건너뛰거나 중복시킵니다.** 스크롤하는 동안 새
+글이 앞에 끼어들면 뒤 페이지가 통째로 밀리기 때문입니다. `published_at` 하나만으로도
+부족합니다 — 같은 시각에 올라온 글이 있으면 경계에서 같은 문제가 납니다.
+**`(published_at, key)` 복합 커서**를 쓰세요.
 
-## 4. 지금 API 가 어디까지 있나
-
-[`docs/MOBILE_OAUTH2.md`](MOBILE_OAUTH2.md) 에 적힌 대로, 앱이 쓸 수 있는 것은
-**인증 계열뿐**입니다.
-
-| 있는 것 | 없는 것 |
-|---|---|
-| `POST /api/auth/google` · `apple` · `refresh` · `logout` · `link-member` | 읽기 엔드포인트 전부 |
-| `GET /api/me` (세션 복원) | 긱뉴스 · 트렌드 · **쇼케이스** 목록 |
-
-앱은 읽기 화면을 아직 목업 데이터로 그리고 있습니다.
-
----
-
-## 5. 모바일 읽기 API 를 만들 때 (제안)
-
-> ⚠️ **아직 구현되지 않았습니다.** 아래는 서버 쪽에서 본 설계 제안입니다.
->
-> 앱이 기대하는 **계약의 원본은 모바일 저장소**
-> [`ai-news-letter-mobile`](https://github.com/swpark3179/ai-news-letter-mobile) 의
-> `docs/03-api-contract.md` 입니다 (`MOBILE_OAUTH2.md` 의 방침). 실제로 만들 때는
-> **그 문서에 「읽기」 절을 쓰고 그것을 기준으로 삼으세요.** 여기에 계약을 복사해
-> 두면 두 벌이 갈립니다. 이 장은 서버 쪽 제약과 함정만 남깁니다.
-
-### 경로
-
-`MOBILE_OAUTH2.md` 가 읽기 엔드포인트를 `/api/mobile/*` 로 잡아 두었으므로
-**`GET /api/mobile/showcase`** 를 따르는 것이 좋습니다.
-
-### 인증 — 여기서 한 번씩 걸립니다
+PostgREST 질의로는 이런 모양입니다.
 
 ```
-Authorization: Bearer <accessToken>
-```
-
-1. **`getSessionUser(req)` 에 `req` 를 반드시 넘기세요.**
-   안 넘기면 쿠키만 보기 때문에 **웹은 멀쩡히 동작하고 앱만 401** 이 됩니다.
-   조용히 어긋나는 종류의 버그라 `src/lib/auth/current-user.ts` 주석에도 경고가
-   붙어 있습니다.
-
-   ```ts
-   const user = await getSessionUser(req);   // ← req 필수
-   if (!user) {
-     return NextResponse.json({ error: "로그인이 필요합니다." }, { status: 401 });
-   }
-   ```
-
-2. **proxy 통과는 인증 완료가 아닙니다.**
-   `/api/mobile/*` 는 [`src/proxy.ts`](../src/proxy.ts) 의 matcher 안이라 유효한
-   쿠키·Bearer 없이는 401 로 끊깁니다. 다만 목업 모드에서는 **게스트 쿠키도
-   통과**하므로, 핸들러가 스스로 한 번 더 확인해야 합니다.
-
-3. `runtime = "nodejs"` 를 선언하세요. `supabaseAdmin()` 은 Edge 에서 못 씁니다.
-
-### 페이지네이션 — offset 이 아니라 커서
-
-무한 스크롤에서 `offset` 은 **항목을 건너뛰거나 중복시킵니다.** 스크롤하는 동안
-새 글이 앞에 끼어들면 뒤 페이지 전체가 한 칸씩 밀리기 때문입니다.
-
-`published_at` 하나만으로도 부족합니다. 같은 시각에 올라온 글이 있으면 경계에서
-같은 문제가 납니다. **`(published_at, url)` 복합 커서**를 쓰세요.
-
-```ts
-// cursor = base64url(JSON.stringify({ p: published_at, u: url }))
-let q = db
-  .from("showcase_items")
-  .select("*")
-  .eq("is_hidden", false)
-  .order("published_at", { ascending: false })
-  .order("url", { ascending: false })
-  .limit(limit + 1);              // +1 로 hasMore 를 판정한다
-
-if (cursor) {
-  const { p, u } = decodeCursor(cursor);
-  // (published_at, url) < (p, u) 를 PostgREST 문법으로 쓴 것
-  q = q.or(`published_at.lt."${p}",and(published_at.eq."${p}",url.lt."${u}")`);
-}
+/rest/v1/mobile_showcase
+  ?select=*
+  &order=published_at.desc,key.desc
+  &limit=21                                   # 20건 + hasMore 판정용 1건
+  &or=(published_at.lt."<커서 시각>",and(published_at.eq."<커서 시각>",key.lt."<커서 key>"))
 ```
 
 - 값에 `+` `:` `,` 가 들어가므로 **큰따옴표로 감싸세요.**
-- `limit + 1` 건을 받아 초과분이 있으면 `hasMore = true`, 응답에서는 잘라 냅니다.
-- 정렬 두 개(`published_at`, `url`)와 커서 비교의 방향이 **반드시 같아야** 합니다.
+- `order` 두 개와 커서 비교의 방향이 **반드시 같아야** 합니다.
 
-### 응답에 담을 것
-
-`ShowcaseItemRow` 를 그대로 내보내지 말고 앱이 쓸 필드만 고르세요.
-`collected_at` · `is_hidden` 같은 내부 열은 앱에 필요 없습니다.
-
-- 항목 배열 + 다음 커서 + 더 있는지 여부
-- 필드는 `url`(키) · `title` · `summary` · `publishedAt` · `externalUrl` ·
-  `sourceDomain` · `points` · `commentCount` · `submitter` 정도
-
-### 오류 형식
-
-기존 라우트가 전부 `{ "error": "한국어 메시지" }` 를 씁니다. 새 엔드포인트도
-같은 모양을 지키세요 — 앱이 오류 표시를 한 곳에서 처리할 수 있습니다.
-
-| 상태 | 언제 |
-|---|---|
-| `401` | 토큰 없음·만료 (앱은 refresh 후 1회 재시도) |
-| `400` | `limit` 범위 밖, 커서 해독 실패 |
-| `500` | DB 오류 |
-
-`limit` 은 상한을 두세요(예: 기본 20 / 최대 50). 상한이 없으면 한 번의 요청으로
-테이블 전체를 끌어갈 수 있습니다.
-
----
 
 ## 6. 앱 화면에서 주의할 것
 
@@ -282,9 +281,11 @@ if (cursor) {
   두 줄 고정 높이를 잡아 두면 이런 카드에서 빈칸이 생깁니다.
 - **탭 했을 때 열 주소는 `external_url ?? url`** 입니다. 사용자가 보고 싶은 것은
   「만든 것」이지 긱뉴스 토픽 페이지가 아닙니다. 다만 `external_url` 이 비어 있는
-  글도 있으므로 `url` 로 떨어뜨리세요.
-- **`is_hidden` 필터는 서버에서** 겁니다. 앱에서 거르면 감춘 항목이 네트워크로 이미
-  나간 뒤입니다.
+  글도 있으므로 `url` 로 떨어뜨리세요. 5장의 뷰는 이것을 `open_url` 로 계산해
+  내려보내므로, 앱이 다시 판단할 필요가 없습니다 — `mobile_feed` 는 `key` 와
+  `open_url` 이 같지만 여기서는 다릅니다.
+- **`is_hidden` 필터는 뷰 안에** 있어야 합니다. 앱이 거는 필터에 맡기면 우회할 수
+  있고, 앱에서 거르면 감춘 항목이 네트워크로 이미 나간 뒤입니다.
 - **오프라인 캐시 키는 `url`** (PK). 안정적이고 재수집해도 바뀌지 않습니다.
 - **정렬은 서버 순서를 그대로 믿으세요.** 클라이언트에서 다시 정렬하면 커서
   페이지네이션과 어긋납니다.
@@ -296,6 +297,8 @@ if (cursor) {
 
 이번 작업은 **수집과 문서까지**입니다. 웹 목록 화면을 붙일 때 함께 손봐야 하는
 곳을 남겨 둡니다. 지금 미리 넣어 두면 아무 데서도 안 쓰이는 죽은 상수가 됩니다.
+(앱 쪽은 [5장](#5-쇼케이스를-앱에서-읽게-하려면) — 서로 독립이라 둘 중 하나만
+해도 됩니다.)
 
 - [ ] `src/types/db.ts` — `SectionKey` 에 `"show"` 추가
 - [ ] `src/lib/domain.ts` — `SECTIONS` 에 `{ key: "show", ko: "쇼케이스", en: "Showcase", automated: true }`, `NAV_ITEMS` 에 항목 추가
@@ -356,6 +359,7 @@ GitHub 에서 확인하려면 Actions → **쇼케이스 동기화** → `Run wo
 | `src/lib/sync/sources/hada-show.ts` | `/show` 고유 설정 |
 | `src/lib/sync/sources/geeknews.ts` | news.hada.io 목록 파서 (메인·쇼케이스 공용) |
 | `src/lib/sync/http.ts` | UA · 요청 간격 · 백오프 |
-| `supabase/migrations/0013_showcase.sql` | 테이블 · 인덱스 · RLS |
+| `supabase/migrations/0014_showcase.sql` | 테이블 · 인덱스 · RLS |
+| `supabase/migrations/0013_mobile_read_access.sql` | 앱이 읽는 뷰 3개와 anon grant (쇼케이스는 아직 없음) |
 | `src/types/db.ts` | `ShowcaseItemRow` · `SyncRunKind` |
 | [`docs/MOBILE_OAUTH2.md`](MOBILE_OAUTH2.md) | 앱 인증 (Bearer 토큰 발급) |

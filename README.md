@@ -22,8 +22,9 @@ Flutter)에 있고, **로그인만 이 서버의 API 를 씁니다** — 사내 
 | 심층 분석 | 월 1회 정기 발표 | 관리자 화면 (사진 · 발표 자료 첨부) |
 
 이와 별도로 **쇼케이스**(news.hada.io/show — 직접 만든 것 소개)를 매일 수집해
-`showcase_items` 에 쌓고 있습니다. 아직 화면은 없고 데이터만 모입니다.
-조회 방법은 [docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) 를 보세요.
+`showcase_items` 에 쌓고 있습니다. 아직 웹 화면도, 앱이 읽을 뷰도 없이 데이터만
+모입니다. 스키마와 조회 방법(앱에서 읽게 하려면 뷰를 어떻게 여는지 포함)은
+[docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) 를 보세요.
 
 ---
 
@@ -98,7 +99,7 @@ src/
     supabase/          service_role 클라이언트
   proxy.ts             경로별 접근 제어 (쿠키 · Bearer)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 13개
+supabase/migrations/   스키마 SQL 14개
 .github/workflows/     동기화 워크플로 4개
 ```
 
