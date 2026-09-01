@@ -21,6 +21,11 @@ Flutter)에 있고, **로그인만 이 서버의 API 를 씁니다** — 사내 
 | 위클리 리뷰 | 유닛원 4명이 매주 1건 | 관리자 화면에서 직접 작성 |
 | 심층 분석 | 월 1회 정기 발표 | 관리자 화면 (사진 · 발표 자료 첨부) |
 
+이와 별도로 **쇼케이스**(news.hada.io/show — 직접 만든 것 소개)를 매일 수집해
+`showcase_items` 에 쌓고 있습니다. 아직 웹 화면도, 앱이 읽을 뷰도 없이 데이터만
+모입니다. 스키마와 조회 방법(앱에서 읽게 하려면 뷰를 어떻게 여는지 포함)은
+[docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) 를 보세요.
+
 ---
 
 ## 빠른 시작
@@ -94,8 +99,8 @@ src/
     supabase/          service_role 클라이언트
   proxy.ts             경로별 접근 제어 (쿠키 · Bearer)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 12개
-.github/workflows/     동기화 워크플로 3개
+supabase/migrations/   스키마 SQL 14개
+.github/workflows/     동기화 워크플로 4개
 ```
 
 **스타일링** — CSS Modules + `src/app/tokens.css`.
@@ -118,6 +123,21 @@ supabase/migrations/   스키마 SQL 12개
   나오면 멈춥니다 (최대 8페이지).
 - 요청 간 1.5초 간격 + 403/429 지수 백오프.
 - Atom 피드(`/rss/news`)로 최근 항목의 요약을 더 긴 원문으로 보강합니다.
+
+### 쇼케이스 (LLM 없음)
+
+`https://news.hada.io/show?page=N` — 사람들이 **직접 만든 것을 소개하는** 게시판.
+성격이 달라 긱뉴스와 테이블(`showcase_items`)과 워크플로를 나눴습니다.
+매일 07:20 KST 에 돕니다 (긱뉴스와 20분 띄워 같은 사이트를 동시에 치지 않습니다).
+
+- 목록 마크업이 메인과 같은 `div.topic_row` 라 **파서를 공유**합니다
+  (`crawlHadaList` 에 경로만 갈아 끼움).
+- 소개문 없이 링크만 올린 글이 있어, 그런 행은 토픽 id 로 PK 를 복원하고
+  `summary` 를 빈 문자열로 둡니다. 메인 기준으로 버리면 조용히 누락됩니다.
+- Atom 피드 보강은 **하지 않습니다** — hada.io 공식 피드는 `/rss/news` 와
+  `/rss/blog` 뿐이고 `/show` 용이 없습니다. 3rd-party 미러에 의존하지 않습니다.
+- 1페이지에서 한 건도 못 뽑으면 **실패로 끝냅니다.** 「새 글이 없다」와
+  「파싱이 깨졌다」가 둘 다 0건이라 구분되지 않기 때문입니다.
 
 ### 트렌드 브리핑 (LLM 사용)
 
@@ -172,6 +192,7 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 - [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) — 테이블 구조 · RLS 설계 배경 · 운영 쿼리
 - [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) — Vercel 배포 절차 · 플랫폼 한도 · 공개 전 점검
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
+- [docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) — 쇼케이스 데이터 조회 (스키마 · **모바일에서 읽는 법**)
 - [docs/SSO_INTEGRATION.md](docs/SSO_INTEGRATION.md) — 사내 SSO 실구현 인계
 - [docs/SSO_KNOX_PROTOCOL.md](docs/SSO_KNOX_PROTOCOL.md) — Knox 트레이 프로토콜 · 미확정 규격 질문 목록
 - **[docs/SSO_DEBUG.md](docs/SSO_DEBUG.md) — 로그인이 안 될 때** (`/login/diag` 4단계 · 「로직 문제인가 변수 로드 문제인가」)
@@ -204,5 +225,6 @@ npm run build          # 프로덕션 빌드
 npm run typecheck      # tsc --noEmit
 npm run lint
 npm run sync:geeknews
+npm run sync:showcase
 npm run sync:trend
 ```

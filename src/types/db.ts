@@ -50,6 +50,8 @@ export type WritableSection = "review" | "deep";
 export type SourceKind = "gh" | "hn" | "ax" | "gk";
 export type TrendSource = "github" | "hn" | "arxiv" | "geeknews";
 export type LlmProviderName = "gemini" | "openai";
+/** 수집 파이프라인 종류 — sync_runs.kind 의 CHECK 제약과 같은 값을 유지한다. */
+export type SyncRunKind = "geeknews" | "trend" | "showcase";
 /** 보관함에 담을 수 있는 대상 종류. target_key 는 종류에 따라 UUID 또는 URL 이다. */
 export type ScrapTargetType = "article" | "trend" | "geek";
 
@@ -90,6 +92,32 @@ export interface GeekNewsRow {
   source_domain: string | null;
   points: number;
   comment_count: number;
+  submitter: string | null;
+  is_hidden: boolean;
+  collected_at: string;
+  collected_date: string;
+}
+
+/**
+ * 쇼케이스 — news.hada.io/show 수집분.
+ *
+ * 목록 행 구조가 긱뉴스와 같아 열도 같지만, 성격이 달라 테이블을 나눴다
+ * (뉴스 큐레이션 vs. 직접 만든 것). summary 는 소개문 없이 올라오는 글이 있어
+ * 빈 문자열일 수 있다 — GeekNewsRow.summary 와 다른 점이다.
+ */
+export interface ShowcaseItemRow {
+  /** PK — 요약부 링크(https://news.hada.io/topic?id=NNNNN) */
+  url: string;
+  title: string;
+  /** 소개문. 없는 글이 있어 빈 문자열일 수 있다. */
+  summary: string;
+  published_at: string;
+  /** 만든 것의 실제 주소 */
+  external_url: string | null;
+  source_domain: string | null;
+  points: number;
+  comment_count: number;
+  /** 만든 사람 */
   submitter: string | null;
   is_hidden: boolean;
   collected_at: string;
@@ -213,7 +241,7 @@ export interface SyncLogEntry {
 
 export interface SyncRunRow {
   id: string;
-  kind: "geeknews" | "trend";
+  kind: SyncRunKind;
   provider: LlmProviderName | null;
   trigger: "schedule" | "manual" | "admin_ui";
   status: "running" | "success" | "failed";

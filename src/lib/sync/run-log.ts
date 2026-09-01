@@ -1,6 +1,6 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { hhmmss } from "@/lib/format";
-import type { LlmProviderName, SyncLogEntry } from "@/types/db";
+import type { LlmProviderName, SyncLogEntry, SyncRunKind } from "@/types/db";
 
 /**
  * sync_runs 행 하나의 수명을 관리한다.
@@ -10,7 +10,7 @@ import type { LlmProviderName, SyncLogEntry } from "@/types/db";
  */
 
 export interface SyncRunOptions {
-  kind: "geeknews" | "trend";
+  kind: SyncRunKind;
   provider?: LlmProviderName | null;
   trigger?: "schedule" | "manual" | "admin_ui";
   dryRun?: boolean;
@@ -20,7 +20,7 @@ export interface SyncRunOptions {
 
 export class SyncRun {
   readonly db: SupabaseClient;
-  readonly kind: "geeknews" | "trend";
+  readonly kind: SyncRunKind;
   readonly dryRun: boolean;
 
   private readonly echo: boolean;

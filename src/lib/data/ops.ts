@@ -2,11 +2,9 @@ import "server-only";
 
 import { supabaseAdmin } from "@/lib/supabase/server";
 import { supabaseEnv } from "@/lib/env";
-import type { AttachmentRow, SyncRunRow } from "@/types/db";
+import type { AttachmentRow, SyncRunKind, SyncRunRow } from "@/types/db";
 
-export async function getLastSyncRun(
-  kind: "geeknews" | "trend",
-): Promise<SyncRunRow | null> {
+export async function getLastSyncRun(kind: SyncRunKind): Promise<SyncRunRow | null> {
   const { data, error } = await supabaseAdmin()
     .from("sync_runs")
     .select("*")
