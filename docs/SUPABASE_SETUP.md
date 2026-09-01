@@ -50,6 +50,12 @@ supabase/migrations/0006_indexes.sql      인덱스 + updated_at 트리거
 supabase/migrations/0007_rls.sql          RLS 활성화
 supabase/migrations/0008_seed.sql         유닛원·로테이션·발행설정 시드
 supabase/migrations/0009_scraps.sql       보관함 조회 인덱스
+supabase/migrations/0010_google_identities.sql  구글 로그인 신원
+supabase/migrations/0011_apple_identities.sql   애플 로그인 신원
+supabase/migrations/0012_member_epid.sql        사번(epid)
+supabase/migrations/0013_mobile_read_access.sql 모바일 읽기 뷰
+supabase/migrations/0014_showcase.sql     showcase_items
+supabase/migrations/0015_hada_contents.sql      hada_contents (상세 본문)
 ```
 
 모든 파일이 `create table if not exists` / `on conflict do nothing` 이라
@@ -124,6 +130,8 @@ on conflict (id) do nothing;
 | 테이블 | PK | 설명 |
 |---|---|---|
 | `geek_news` | `url` (긱뉴스 토픽 URL) | news.hada.io 수집분. 제목·요약을 원문 그대로 저장 |
+| `showcase_items` | `url` (토픽 URL) | news.hada.io/show 수집분. 직접 만든 것 소개 |
+| `hada_contents` | `url` (토픽 URL) | 위 둘의 **상세 페이지 본문**. 마크다운, 원문 그대로 |
 | `trend_items` | `source_url` (원본 URL) | GitHub·HN·arXiv·긱뉴스를 AI 가 한국어 기사로 요약 |
 | `articles` | `id` | 유닛원이 쓰는 글. `section` = review \| deep |
 | `article_sources` | `id` | 기사별 원문 링크 |
@@ -137,6 +145,16 @@ on conflict (id) do nothing;
 일반 토픽      https://news.hada.io/topic?id=32516
 긱뉴스 자체글  https://news.hada.io/article/<slug>    ← ARTICLE 배지가 붙은 행
 ```
+
+**`hada_contents` 를 목록 테이블과 나눈 이유** — 목록 조회가 `select('*')` 라,
+본문을 `geek_news` 에 넣으면 목록 한 번 그릴 때마다 본문을 통째로 끌어옵니다.
+PK 가 `geek_news.url` / `showcase_items.url` 과 같은 값이라 조인은 그대로 됩니다.
+부모가 둘이라 단일 FK 로 표현할 수 없어 FK 는 걸지 않았습니다.
+
+저장 범위는 상세 페이지에서 **"함께 보면 좋은 글" 직전까지**의 본문입니다.
+경계가 리터럴 문자열이라 DOM 절단으로 정확히 끊기고, 그래서 LLM 을 쓰지 않습니다.
+본문을 못 찾으면 빈 문자열이 아니라 `status = 'parse_failed'` 로 남습니다 —
+마크업이 바뀐 것을 조용히 넘기지 않기 위해서입니다.
 
 **`trend_items.public_id`** 는 `substr(md5(source_url), 1, 12)` 로 계산되는
 generated column 입니다. URL 을 그대로 주소에 넣을 수 없어서 라우팅에만 씁니다

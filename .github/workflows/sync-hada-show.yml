@@ -1,8 +1,10 @@
 name: 쇼케이스 동기화
 
 # news.hada.io/show — 사람들이 직접 만든 것을 소개하는 게시판.
-# 긱뉴스와 마찬가지로 제목·소개문을 원문 그대로 저장하므로 LLM 을 쓰지 않는다.
+# 긱뉴스와 마찬가지로 제목·소개문·본문을 원문 그대로 저장하므로 LLM 을 쓰지 않는다.
 # API 키가 필요 없고 비용도 들지 않는다.
+#
+# 상세 페이지 구조가 긱뉴스와 같아 본문 수집 코드(hada_contents)를 그대로 쓴다.
 #
 # 긱뉴스와 파일을 나눈 이유 — 한쪽이 실패해도 다른 쪽 실행 이력에 섞이지 않고,
 # 재실행과 수동 dispatch 를 따로 걸 수 있다.
@@ -36,13 +38,16 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       SHOW_LOOKBACK_DAYS: ${{ github.event.inputs.days || '3' }}
       SHOW_MAX_PAGES: "5"
+      # 한 실행에서 상세 페이지를 몇 장까지 받아 본문을 채울지.
+      # 요청 사이에 1.5초를 두므로 40건이면 약 1~2분이다.
+      HADA_CONTENT_MAX_PER_RUN: "40"
       TZ: Asia/Seoul
 
     steps:

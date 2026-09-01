@@ -1,7 +1,10 @@
 name: 긱뉴스 동기화
 
-# 긱뉴스는 제목·요약을 원문 그대로 저장하므로 LLM 을 쓰지 않는다.
+# 긱뉴스는 제목·요약·본문을 원문 그대로 저장하므로 LLM 을 쓰지 않는다.
 # API 키가 필요 없고 비용도 들지 않는다.
+#
+# 목록을 적재한 뒤 상세 페이지를 열어 본문("함께 보면 좋은 글" 직전까지)을
+# hada_contents 에 담는다. 경계가 리터럴 문자열이라 DOM 절단으로 정확히 끊긴다.
 
 on:
   schedule:
@@ -30,13 +33,16 @@ permissions:
 jobs:
   sync:
     runs-on: ubuntu-latest
-    timeout-minutes: 15
+    timeout-minutes: 20
 
     env:
       SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
       SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
       GEEK_LOOKBACK_DAYS: ${{ github.event.inputs.days || '3' }}
       GEEK_MAX_PAGES: "8"
+      # 한 실행에서 상세 페이지를 몇 장까지 받아 본문을 채울지.
+      # 요청 사이에 1.5초를 두므로 40건이면 약 1~2분이다.
+      HADA_CONTENT_MAX_PER_RUN: "40"
       TZ: Asia/Seoul
 
     steps:

@@ -18,6 +18,10 @@ export interface CliArgs {
   provider: "gemini" | "openai" | undefined;
   days: number | null;
   only: string[] | null;
+  /** 단일 URL 진단 모드 (--url=…) */
+  url: string | null;
+  /** 소스 선택 (--source=geeknews|showcase) */
+  source: "geeknews" | "showcase" | null;
   help: boolean;
 }
 
@@ -28,11 +32,17 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): CliArgs {
     provider: undefined,
     days: null,
     only: null,
+    url: null,
+    source: null,
     help: false,
   };
 
   for (const raw of argv) {
-    const [key, value] = raw.includes("=") ? raw.split("=") : [raw, undefined];
+    // 첫 '=' 에서만 자른다. split("=") 를 쓰면 값 안의 '=' 에서 또 잘려
+    // --url=https://news.hada.io/topic?id=33087 이 "…topic?id" 로 뭉개진다.
+    const eq = raw.indexOf("=");
+    const key = eq >= 0 ? raw.slice(0, eq) : raw;
+    const value = eq >= 0 ? raw.slice(eq + 1) : undefined;
     switch (key) {
       case "--dry-run":
         args.dryRun = true;
@@ -45,6 +55,12 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): CliArgs {
         break;
       case "--days":
         args.days = Number(value);
+        break;
+      case "--url":
+        args.url = value ?? null;
+        break;
+      case "--source":
+        if (value === "geeknews" || value === "showcase") args.source = value;
         break;
       case "--only":
         args.only = (value ?? "").split(",").map((s) => s.trim()).filter(Boolean);

@@ -1,0 +1,47 @@
+name: 긱뉴스 상세 구조 진단
+
+# news.hada.io 상세 페이지 한 장을 받아 본문 추출이 어떻게 되는지 그대로 보여 준다.
+#
+# 왜 워크플로로 두는가 — 본문 컨테이너의 클래스명은 실측하지 않으면 알 수 없는데,
+# 개발 환경에 따라 news.hada.io 에 직접 닿지 못할 수 있다. GitHub 러너는 닿는다.
+# 그래서 셀렉터를 확정할 때도, 나중에 마크업이 바뀌어 parse_failed 가 늘 때도
+# 여기서 진단한다.
+#
+# 시크릿도 DB 도 쓰지 않는다 — 페이지 한 장을 읽고 결과를 로그에 찍을 뿐이다.
+
+on:
+  workflow_dispatch:
+    inputs:
+      url:
+        description: "진단할 토픽 URL"
+        required: true
+        default: "https://news.hada.io/topic?id=33087"
+
+concurrency:
+  group: probe-hada-topic
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  probe:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+
+    env:
+      TZ: Asia/Seoul
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "22"
+          cache: npm
+
+      - name: 의존성 설치
+        run: npm ci
+
+      - name: 상세 페이지 진단
+        run: npm run sync:hada-content -- "--url=${{ inputs.url }}"

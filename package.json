@@ -9,6 +9,7 @@
     "lint": "eslint",
     "typecheck": "tsc --noEmit",
     "sync:geeknews": "tsx scripts/sync/geeknews.ts",
+    "sync:hada-content": "tsx scripts/sync/hada-content.ts",
     "sync:showcase": "tsx scripts/sync/showcase.ts",
     "sync:trend": "tsx scripts/sync/trend.ts",
     "sql:bundle": "node scripts/bundle-sql.mjs"

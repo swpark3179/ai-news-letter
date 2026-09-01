@@ -99,8 +99,8 @@ src/
     supabase/          service_role 클라이언트
   proxy.ts             경로별 접근 제어 (쿠키 · Bearer)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 14개
-.github/workflows/     동기화 워크플로 4개
+supabase/migrations/   스키마 SQL 15개
+.github/workflows/     동기화 워크플로 4개 + 진단 1개
 ```
 
 **스타일링** — CSS Modules + `src/app/tokens.css`.
@@ -138,6 +138,43 @@ supabase/migrations/   스키마 SQL 14개
   `/rss/blog` 뿐이고 `/show` 용이 없습니다. 3rd-party 미러에 의존하지 않습니다.
 - 1페이지에서 한 건도 못 뽑으면 **실패로 끝냅니다.** 「새 글이 없다」와
   「파싱이 깨졌다」가 둘 다 0건이라 구분되지 않기 때문입니다.
+
+### 본문 수집 (LLM 없음)
+
+목록만으로는 앱이 `news.hada.io` 로 링크를 열어 줄 수밖에 없었고, 그 페이지에
+광고가 섞여 읽기 불편했습니다. 그래서 목록을 적재한 뒤 **상세 페이지를 열어
+본문을 `hada_contents` 에 담습니다.** 긱뉴스와 쇼케이스가 같은 코드를 씁니다.
+
+- **경계는 "함께 보면 좋은 글"** — 상세 페이지는 `제목 → 작성자 → 본문 →
+  "함께 보면 좋은 글" → 관련글 → 댓글` 순서입니다. 그 문구가 시작하는 노드부터
+  문서 순서로 뒤를 전부 버립니다. 경계가 리터럴 문자열이라 **LLM 이 필요 없습니다** —
+  요약이 아니라 원문 이관이므로 모델을 태우면 비용과 변형 위험만 늘 뿐입니다.
+- 저장 형식은 **마크다운**입니다. 제목·목록·링크·코드블록 구조를 잃지 않으면서
+  평문 대비 10% 남짓만 큽니다. `turndown` 없이 cheerio 로 직접 변환합니다.
+- 광고(`ins.adsbygoogle`)·스크립트·관련글 행(`div.topic_row`)은 걷어냅니다.
+  `javascript:` / `data:` 링크는 주소를 버리고 글자만 남깁니다.
+- **예산제** — 한 실행에서 `HADA_CONTENT_MAX_PER_RUN`(기본 40)건만 받습니다.
+  신규 항목을 먼저 채우고, 남으면 아직 본문이 없는 과거 항목을 메웁니다.
+  그래서 처음 켤 때도 별도 백필 없이 며칠에 걸쳐 저절로 채워집니다.
+- 요청 간 1.5초, 3회 실패한 항목은 포기합니다. **본문 단계는 목록 수집을
+  실패시키지 않습니다** — 부가물이고, 다음 실행에서 다시 시도하면 됩니다.
+- 본문 컨테이너를 못 찾으면 빈 문자열로 뭉개지 않고 `status = 'parse_failed'`
+  로 남깁니다. 절반을 넘으면 실행 로그에 error 로 올립니다 — 마크업이 바뀐 것을
+  조용히 넘기면 며칠치가 빈 채로 쌓입니다.
+
+용량은 본문 평균 ~1.2천자(한글 UTF-8 3바이트) ≈ 4KB/행, 하루 35건이면 연 50MB
+원시 · TOAST 압축 후 20~25MB 수준입니다. 20,000자 상한이 최악의 행을 묶습니다.
+
+```bash
+npm run sync:hada-content -- --url=https://news.hada.io/topic?id=33087   # 구조 진단 (DB 불필요)
+npm run sync:hada-content -- --source=geeknews                           # 본문만 따로 채우기
+npm run sync:hada-content -- --source=showcase --dry-run
+```
+
+`--url` 진단은 어떤 셀렉터가 걸렸는지, 마커를 어디서 찾았는지, 뽑아낸 본문이
+무엇인지 그대로 보여 줍니다. 개발 환경에서 news.hada.io 에 닿지 않으면
+GitHub Actions 의 **긱뉴스 상세 구조 진단** 워크플로를 dispatch 하면 같은 출력을
+얻습니다. 마크업이 바뀌어 `parse_failed` 가 늘 때도 여기서 다시 실측합니다.
 
 ### 트렌드 브리핑 (LLM 사용)
 
