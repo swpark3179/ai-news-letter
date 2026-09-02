@@ -182,11 +182,18 @@ GitHub Actions 의 **긱뉴스 상세 구조 진단** 워크플로를 dispatch �
 |---|:---:|---|---|
 | GitHub Trending | ✅ | `?since=daily\|weekly\|monthly` 3회 스크레이핑 후 합집합 | `https://github.com/{owner}/{repo}` |
 | Hacker News | ✅ | 공식 Firebase API + Algolia 로 상위 댓글 | `https://news.ycombinator.com/item?id=N` |
-| arXiv | ✅ | 공식 Atom API (cs.AI/CL/IR/LG) | `https://arxiv.org/abs/{id}` |
+| arXiv | ✅ | 공식 Atom API (cs.AI/CL/IR/LG) · 429 면 `rss.arxiv.org` 공지 RSS 로 대체 | `https://arxiv.org/abs/{id}` |
 | 긱뉴스 | — | 수집된 `geek_news` 재사용 (`--only=geeknews` 로만) | 토픽 URL |
 
 긱뉴스는 **긱뉴스 데일리**가 원문 그대로 담당하므로 기본 출처에서 빼 두었습니다.
 같은 글이 두 카테고리에 겹쳐 실리지 않게 하려는 것입니다.
+
+**출처 하나가 죽어도 실행은 계속됩니다.** 수집에 실패한 출처는 `sync_runs.logs` 에
+남기고 나머지 출처로 기사를 만듭니다. 요청한 출처가 전부 실패했을 때만 실행이
+실패합니다. arXiv API(`export.arxiv.org`)는 IP 단위로 요청량을 재는데 GitHub
+Actions 러너는 IP 대역을 공유해서 첫 요청부터 429 가 오기도 합니다. 그래서
+`Retry-After` 를 따르는 재시도 → `rss.arxiv.org` 공지 RSS 대체 수집 → 그래도 안
+되면 arXiv 만 건너뛰기 순으로 물러납니다.
 
 신규 URL 만 골라 컨텍스트(README / 상위 댓글 / 초록)를 모으고, 5건씩 묶어 LLM 에
 구조화 JSON 으로 요청합니다. 1회 실행당 신규 상한 30건이며, 초과분은

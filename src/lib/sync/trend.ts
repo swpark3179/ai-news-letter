@@ -59,6 +59,8 @@ export interface TrendSyncResult {
   fresh: number;
   inserted: number;
   skipped: number;
+  /** 수집에 실패해 이번 실행에서 빠진 출처 (나머지 출처로 계속 진행한다) */
+  failedSources: TrendSource[];
 }
 
 interface Candidate {
@@ -114,9 +116,26 @@ export async function syncTrend(
     );
 
     // --- 1. 후보 수집 ------------------------------------------------------
+    //
+    // 출처 하나가 죽어도 나머지는 살린다. 예전에는 arXiv 가 429 하나만 뱉어도
+    // 이미 모아 둔 GitHub·HN 후보까지 통째로 버리고 실행 전체가 실패했다.
     const candidates: Candidate[] = [];
+    const failedSources: TrendSource[] = [];
 
-    if (sources.has("github")) {
+    const collect = async (source: TrendSource, label: string, fn: () => Promise<void>) => {
+      if (!sources.has(source)) return;
+      try {
+        await fn();
+      } catch (e) {
+        failedSources.push(source);
+        run.log(
+          `${label} 수집 실패 — ${e instanceof Error ? e.message : e} · 이 출처 없이 계속합니다`,
+          "error",
+        );
+      }
+    };
+
+    await collect("github", "GitHub Trending", async () => {
       const repos = await fetchAllTrending((period, count) =>
         run.log(`GitHub Trending ${period} · ${count}건`),
       );
@@ -137,9 +156,9 @@ export async function syncTrend(
           sourceLabel: `GitHub Trending (${r.period})`,
         });
       }
-    }
+    });
 
-    if (sources.has("hn")) {
+    await collect("hn", "Hacker News", async () => {
       const stories = await fetchTopStories({ minScore: hnMinScore, limit: 25 });
       run.log(`Hacker News · 점수 ${hnMinScore} 이상 ${stories.length}건`);
       for (const st of stories) {
@@ -158,10 +177,14 @@ export async function syncTrend(
           sourceLabel: "Hacker News",
         });
       }
-    }
+    });
 
-    if (sources.has("arxiv")) {
-      const papers = await fetchRecentPapers({ limit: 40 });
+    await collect("arxiv", "arXiv", async () => {
+      // 재시도·RSS 대체 수집 상황을 실행 로그에 그대로 흘린다.
+      const papers = await fetchRecentPapers({
+        limit: 40,
+        log: (msg, level) => run.log(msg, level),
+      });
       run.log(`arXiv · 신규 논문 ${papers.length}건`);
       for (const p of papers) {
         candidates.push({
@@ -175,9 +198,9 @@ export async function syncTrend(
           sourceLabel: `arXiv ${p.category}`,
         });
       }
-    }
+    });
 
-    if (sources.has("geeknews")) {
+    await collect("geeknews", "긱뉴스", async () => {
       // 방금 동기화된 긱뉴스에서 최근 것만 가져다 쓴다.
       const { data: geek } = await db
         .from("geek_news")
@@ -207,6 +230,15 @@ export async function syncTrend(
           sourceLabel: "긱뉴스",
         });
       }
+    });
+
+    // 요청한 출처가 전부 죽었으면 그건 진짜 실패다. 일부만 죽었으면 경고만
+    // 남기고 남은 출처로 기사를 만든다.
+    if (failedSources.length >= sources.size) {
+      throw new Error(`모든 출처 수집 실패 (${failedSources.join(", ")})`);
+    }
+    if (failedSources.length > 0) {
+      run.log(`${failedSources.join(", ")} 출처 없이 진행합니다`, "warn");
     }
 
     run.fetched = candidates.length;
@@ -215,7 +247,7 @@ export async function syncTrend(
     if (candidates.length === 0) {
       run.log("수집된 후보가 없습니다.", "warn");
       await run.finish("success");
-      return { runId: run.id, fetched: 0, fresh: 0, inserted: 0, skipped: 0 };
+      return { runId: run.id, fetched: 0, fresh: 0, inserted: 0, skipped: 0, failedSources };
     }
 
     // --- 2. 기존 URL 제외 ---------------------------------------------------
@@ -267,6 +299,7 @@ export async function syncTrend(
         fresh: 0,
         inserted: 0,
         skipped: run.skipped,
+        failedSources,
       };
     }
 
@@ -284,6 +317,7 @@ export async function syncTrend(
         fresh: fresh.length,
         inserted: 0,
         skipped: run.skipped,
+        failedSources,
       };
     }
 
@@ -395,6 +429,7 @@ export async function syncTrend(
       fresh: fresh.length,
       inserted,
       skipped: run.skipped,
+      failedSources,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);

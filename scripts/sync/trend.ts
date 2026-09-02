@@ -58,6 +58,15 @@ async function main() {
   console.log(
     `\n후보 ${result.fetched}건 · 신규 ${result.fresh}건 · 저장 ${result.inserted}건 · 건너뜀 ${result.skipped}건`,
   );
+
+  // 일부 출처가 죽어도 나머지로 기사를 만들었으면 실패가 아니다(종료 코드 0).
+  // 다만 조용히 넘어가면 며칠씩 빠진 걸 모르므로 Actions 로그에 경고를 남긴다.
+  if (result.failedSources.length > 0) {
+    const msg =
+      `수집하지 못한 출처: ${result.failedSources.join(", ")} — ` +
+      `나머지 출처로만 기사를 만들었습니다.`;
+    console.warn(process.env.GITHUB_ACTIONS ? `::warning::${msg}` : `! ${msg}`);
+  }
 }
 
 main().catch(fail);
