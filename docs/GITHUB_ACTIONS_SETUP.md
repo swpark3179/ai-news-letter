@@ -195,6 +195,7 @@ Google AI Studio **무료 티어는 입력이 Google 제품 개선에 사용될 
 | `HTTP 403 — https://news.hada.io/` | UA 에 `bot` 이 들어가면 차단됩니다. `SYNC_USER_AGENT` 를 건드렸다면 되돌리세요 |
 | `ConnectTimeoutError` | 프록시 환경. `HTTPS_PROXY` 를 설정하면 스크립트가 자동으로 적용합니다 |
 | `429 Too Many Requests` (Gemini) | `LLM_MIN_CALL_INTERVAL_MS` 를 10000 이상으로 올리거나 `TREND_MAX_NEW` 를 줄이세요 |
+| `HTTP 429 — http://export.arxiv.org/api/query…` | arXiv 는 IP 단위로 요청량을 잽니다(러너 IP 는 공유). `Retry-After` 재시도 → `rss.arxiv.org` RSS 대체 → 그래도 안 되면 arXiv 만 빼고 진행합니다. 로그에 `수집하지 못한 출처: arxiv` 경고가 뜨면 그 날치 논문만 빠진 것이라 다음 실행에서 따라잡습니다. 차단이 계속되면 `ARXIV_USER_AGENT` 에 연락처를 넣어 두세요 |
 | 수집은 되는데 저장이 0건 | 이미 있는 URL 입니다. `sync_runs.skipped_count` 를 확인하세요 (정상 동작) |
 | 특정 출처만 들어온다 | `only` 입력값을 확인하세요. 비워 두면 `github,hn,arxiv` 세 출처를 모두 돌고 상한은 출처별로 나눠 담습니다 |
 | `sync_runs` 가 `running` 에서 멈춤 | 함수/잡이 타임아웃으로 죽은 경우입니다. 다음 실행은 15분 뒤부터 다시 시작됩니다 |
