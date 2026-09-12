@@ -16,7 +16,11 @@ import { supabaseAdmin } from "@/lib/supabase/server";
 import { MEMBERS_EPID_MISSING, isMissingColumnError } from "@/lib/supabase/schema";
 import type { MemberRow } from "@/types/db";
 import { assertDecodedUser, decodeMock } from "./decode";
-import { decodeBaseKey, decodeKnoxPayloadForDiagnostics } from "./decode-knox";
+import {
+  decodeBaseKey,
+  decodeKnoxPayloadForDiagnostics,
+  parseRsaPrivateKey,
+} from "./decode-knox";
 import {
   DIAG_TOKEN_HEADER,
   newDecodeTrace,
@@ -335,7 +339,7 @@ function serverEnvGroup(): DiagGroup {
       status: real ? "warn" : "skip",
       value: "(비어 있음)",
       detail: real
-        ? "wb64-xor-basekey 전략이 건너뛰어집니다. 「단순 인코딩」 후보 중 하나가 아예 시도되지 않으니, 3단계 드라이런에서 그 전략이 skipped 로 나오면 이 값이 원인입니다."
+        ? "SecuBase 의 32바이트 대칭키입니다. RSA 개인키를 쓰는 구조라면 이 값은 필요 없습니다 — 아래 SSO_RSA_PRIVATE_KEY 를 보세요. 비어 있으면 wb64-xor-basekey 전략만 건너뛰어집니다."
         : "목업 모드에서는 쓰이지 않습니다.",
     });
   } else {
@@ -355,6 +359,41 @@ function serverEnvGroup(): DiagGroup {
         status: "fail",
         value: `입력 ${rawKey.length}자 — 되돌리기 실패`,
         detail: e instanceof Error ? e.message : "32바이트로 되돌리지 못했습니다.",
+      });
+    }
+  }
+
+  // --- RSA 개인키 (레거시의 rsaprivkey8) ---
+  const rawRsa = ssoServerEnv.rsaPrivateKey.trim();
+  if (!rawRsa) {
+    checks.push({
+      id: "rsa-key",
+      label: "SSO_RSA_PRIVATE_KEY",
+      status: real ? "warn" : "skip",
+      value: "(비어 있음)",
+      detail: real
+        ? "RSA 계열 전략(rsa-key→…)이 전부 건너뛰어집니다. 레거시 서버가 rsaprivkey8 을 들고 있었다면 이 값이 있어야 userInfo 가 풀립니다."
+        : "목업 모드에서는 쓰이지 않습니다.",
+    });
+  } else {
+    try {
+      const parsed = parseRsaPrivateKey(rawRsa, ssoServerEnv.rsaPrivateKeyPassphrase);
+      checks.push({
+        id: "rsa-key",
+        label: "SSO_RSA_PRIVATE_KEY",
+        status: "ok",
+        value: `RSA ${parsed.bits}비트 · ${parsed.notation} 표기 · 입력 ${rawRsa.length}자`,
+        detail:
+          "개인키로 읽혔습니다. 값 자체는 담지 않습니다. 이 키가 있으면 평문 전략(raw-plain 등)은 " +
+          "위조 방지를 위해 닫힙니다 — 3단계 전략 표에 skipped 로 나오는 것이 정상입니다.",
+      });
+    } catch (e) {
+      checks.push({
+        id: "rsa-key",
+        label: "SSO_RSA_PRIVATE_KEY",
+        status: "fail",
+        value: `입력 ${rawRsa.length}자 — 읽기 실패`,
+        detail: e instanceof Error ? e.message : "개인키로 읽지 못했습니다.",
       });
     }
   }

@@ -108,6 +108,27 @@ export const ssoServerEnv = {
   },
 
   /**
+   * 서버의 RSA 개인키 (레거시의 `rsaprivkey8`).
+   *
+   * decodeKey 와 **다른 물건이다.** decodeKey 는 SecuBase 의 32바이트 대칭키이고,
+   * 이것은 트레이가 준 `key` 필드를 푸는 개인키다 — 하이브리드 암호(공개키로
+   * 세션키를 싸고, 세션키로 본문을 암호화)의 절반이다. 그래서 둘을 한 변수에
+   * 담지 않는다. 길이 검사부터 서로 다르다 (32바이트 vs 수백 바이트).
+   *
+   * 표기는 decode-knox.ts 의 parseRsaPrivateKey 가 흡수한다 — PEM 그대로,
+   * 개행이 `\n` 으로 이스케이프된 PEM, PEM 전체를 base64 로 감싼 것, DER 을
+   * base64 로 넣은 것 모두 받는다. **Vercel 에는 base64 로 넣는 편이 안전하다.**
+   */
+  get rsaPrivateKey() {
+    return optionalEnv("SSO_RSA_PRIVATE_KEY");
+  },
+
+  /** 개인키가 암호화된 PEM(`BEGIN ENCRYPTED PRIVATE KEY`)일 때의 암호. */
+  get rsaPrivateKeyPassphrase() {
+    return optionalEnv("SSO_RSA_PRIVATE_KEY_PASSPHRASE");
+  },
+
+  /**
    * 처음 보는 EPID 를 자동으로 가입시킬지.
    *
    * 방침은 「등록된 사용자만 로그인한다」이므로 실 모드 기본값은 false 다.
