@@ -1,6 +1,7 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
 import { kstDateString } from "@/lib/format";
 import { runContentStage } from "./hada-content";
+import { dropShowcaseOverlap } from "./hada-dedup";
 import { SyncRun } from "./run-log";
 import {
   crawlGeekNews,
@@ -16,6 +17,10 @@ import {
  *
  * 멱등성: PK 가 요약부 링크 URL 이라 on conflict do nothing 으로 기존 항목을
  * 자동으로 건너뛴다. 같은 명령을 여러 번 돌려도 행 수가 늘지 않는다.
+ *
+ * 쇼케이스와의 중복: 메인 목록에는 `/show` 글도 함께 뜬다. 겹치면 쇼케이스가
+ * 이기므로, 쇼케이스가 이미 가진 URL 은 담지 않고 이미 담겨 있던 긱뉴스 행도
+ * 지운다 (sync/hada-dedup.ts).
  */
 
 export interface GeekSyncOptions {
@@ -118,8 +123,16 @@ export async function syncGeekNews(
       run.log(`Atom 피드로 요약 ${enriched}건 보강`);
     }
 
-    // --- 3. 기존 URL 확인 -------------------------------------------------
+    // --- 3. 쇼케이스와 겹치는 항목 정리 ------------------------------------
+    // 기존 항목 조회보다 먼저 돈다 — 여기서 지운 행이 "이미 있는 항목"으로
+    // 다시 세어지지 않도록.
     const urls = crawled.items.map((i) => i.url);
+    const claimed = await dropShowcaseOverlap(db, urls, {
+      run,
+      dryRun: opts.dryRun,
+    });
+
+    // --- 4. 기존 URL 확인 -------------------------------------------------
     const { data: existing, error: selErr } = await db
       .from("geek_news")
       .select("url")
@@ -129,11 +142,16 @@ export async function syncGeekNews(
     if (selErr) throw new Error(`기존 항목 조회 실패: ${selErr.message}`);
 
     const known = new Set((existing ?? []).map((r) => r.url));
-    const fresh = crawled.items.filter((i) => !known.has(i.url));
+    const fresh = crawled.items.filter(
+      (i) => !known.has(i.url) && !claimed.has(i.url),
+    );
 
     run.fresh = fresh.length;
     run.skipped = crawled.items.length - fresh.length;
-    run.log(`신규 ${fresh.length}건 · 이미 있는 항목 ${run.skipped}건 건너뜀`);
+    run.log(
+      `신규 ${fresh.length}건 · 건너뜀 ${run.skipped}건` +
+        (claimed.size > 0 ? ` (쇼케이스 중복 ${claimed.size}건 포함)` : ""),
+    );
 
     if (fresh.length === 0) {
       await collectBodies([]);
@@ -147,7 +165,7 @@ export async function syncGeekNews(
       };
     }
 
-    // --- 4. 저장 -----------------------------------------------------------
+    // --- 5. 저장 -----------------------------------------------------------
     if (opts.dryRun) {
       run.log(`[dry-run] 저장하지 않고 종료 — 신규 ${fresh.length}건`, "warn");
       for (const i of fresh.slice(0, 10)) {

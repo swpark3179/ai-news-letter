@@ -1,7 +1,7 @@
 import Link from "next/link";
 import ScrapButton from "@/components/scrap/ScrapButton";
 import { sourceStyleOf } from "@/lib/domain";
-import { hhmm, shortDateKo } from "@/lib/format";
+import { shortDateKo } from "@/lib/format";
 import { routes } from "@/lib/routes";
 import { repoLabelOf } from "@/lib/trendItem";
 import type { TrendItemRow } from "@/types/db";
@@ -42,7 +42,7 @@ export default function LeadStory({ lead, canSave = false, saved }: Props) {
         <span className={s.leadKicker}>트렌드 브리핑</span>
         <span className={s.dotSep} />
         <span className={s.leadNote}>
-          {shortDateKo(lead.collected_date)} {hhmm(lead.collected_at)} 수집
+          {shortDateKo(lead.collected_date)} 수집
         </span>
       </div>
 
