@@ -20,7 +20,7 @@ import { getLastSyncRun, storageUrl } from "@/lib/data/ops";
 import { getPublishSettings } from "@/lib/data/settings";
 import { getSavedKeys } from "@/lib/data/scraps";
 import { getSessionUser } from "@/lib/auth/current-user";
-import { formatIssue, hhmm } from "@/lib/format";
+import { formatIssue, shortDot } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
@@ -94,7 +94,7 @@ export default async function HomePage() {
   const lastSync = {
     ok: syncOk,
     label: syncOk && lastSyncAt
-      ? `자동 수집 정상 · ${hhmm(lastSyncAt)}`
+      ? `자동 수집 정상 · ${shortDot(lastSyncAt)}`
       : lastGeekSync?.status === "failed"
         ? "자동 수집 실패 · 관리자 확인 필요"
         : "자동 수집 대기 중",

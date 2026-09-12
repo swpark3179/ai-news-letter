@@ -1,7 +1,7 @@
 import Link from "next/link";
 import ScrapButton from "@/components/scrap/ScrapButton";
 import { routes } from "@/lib/routes";
-import { hhmm } from "@/lib/format";
+import { shortDot } from "@/lib/format";
 import type { GeekNewsRow } from "@/types/db";
 import type { RotationWithMember } from "@/lib/data/content";
 import s from "./home.module.css";
@@ -41,7 +41,7 @@ export default function GeekAside({
           {showEn && <div className={s.asideEn}>GeekNews Daily</div>}
         </div>
         <span className={s.asideUpdated}>
-          {updatedAt ? `${hhmm(updatedAt)} 갱신` : "수집 대기"}
+          {updatedAt ? `${shortDot(updatedAt)} 갱신` : "수집 대기"}
         </span>
       </div>
 
@@ -55,7 +55,7 @@ export default function GeekAside({
       {geek.map((g) => (
         <div key={g.url} className={s.geekItem}>
           <div className={s.geekRow}>
-            <span className={s.geekTime}>{hhmm(g.published_at)}</span>
+            <span className={s.geekDate}>{shortDot(g.published_at)}</span>
             <div className={s.geekBody}>
               <a
                 href={g.url}

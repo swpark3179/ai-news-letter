@@ -553,7 +553,7 @@
   gap: 9px;
 }
 
-.geekTime {
+.geekDate {
   font-family: var(--font-mono);
   font-size: 10.5px;
   color: var(--gray-400);

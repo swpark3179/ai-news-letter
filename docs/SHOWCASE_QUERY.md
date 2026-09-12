@@ -33,6 +33,37 @@
 둘 다 제목과 소개문을 **원문 그대로** 저장합니다. 요약 모델을 태우지 않으므로
 비용도 환각도 없습니다.
 
+### 같은 글이 양쪽에 잡힐 때 — 쇼케이스가 이깁니다
+
+`/show` 에 올라온 글은 메인 목록에도 함께 뜹니다. 두 목록이 같은 `div.topic_row`
+템플릿이라 **요약부 링크(= 두 테이블의 PK)까지 같은 문자열**이고, 각 테이블 안의
+PK 는 테이블을 가로지르는 중복을 막지 못합니다. 그대로 두면 같은 글이 「오늘의
+뉴스」와 「누가 뭘 만들었나」에 두 번 보입니다.
+
+그래서 두 수집기가 URL 로 겹침을 확인하고 **한쪽으로만 남깁니다.**
+
+| 겹침을 발견한 쪽 | 하는 일 |
+|---|---|
+| 긱뉴스 수집 | 쇼케이스에 있는 URL 은 적재하지 않고, 이미 들어가 있던 `geek_news` 행도 지웁니다 |
+| 쇼케이스 수집 | `geek_news` 행을 **수집 이력(`collected_at` · `collected_date`)과 `is_hidden` 째로** 넘겨받아 `showcase_items` 에 담고, `geek_news` 에서 지웁니다 |
+
+방향을 쇼케이스로 못박은 이유는 「누가 무엇을 만들었나」가 「읽을 거리 하나」보다
+좁고 확실한 정보이고, 무엇보다 **어느 수집기가 먼저 돌든 결과가 같아야** 하기
+때문입니다 (지금 일정은 긱뉴스 07:00 → 쇼케이스 07:20 이라 그날치는 긱뉴스에
+먼저 들어갑니다).
+
+본문(`hada_contents`)은 지우지 않습니다. PK 가 같은 토픽 URL 이고 상세 페이지도
+하나뿐이라 `source` 라벨만 `showcase` 로 고쳐 답니다 — 지우면 다음 실행에서 같은
+페이지를 쓸데없이 다시 받습니다.
+
+> 보관함(`scraps`)에 긱뉴스로 담아 둔 항목이 이관되면 그 자리는 빈칸이 됩니다.
+> `scraps` 는 FK 없이 `(target_type, target_key)` 로만 참조하고 원본이 없는 항목은
+> 이미 null 로 떨어지게 되어 있어(`src/lib/data/scraps.ts`) 목록이 깨지지는
+> 않습니다. 쇼케이스에 보관 대상 종류를 붙이면 그때 이어집니다.
+
+구현은 [`src/lib/sync/hada-dedup.ts`](../src/lib/sync/hada-dedup.ts) 한 파일에
+모여 있습니다.
+
 ---
 
 ## 2. 어디에 쌓이나 — `showcase_items`
@@ -359,6 +390,7 @@ GitHub 에서 확인하려면 Actions → **쇼케이스 동기화** → `Run wo
 | `.github/workflows/sync-hada-show.yml` | 매일 07:20 KST 실행 |
 | `scripts/sync/showcase.ts` | CLI 진입점 |
 | `src/lib/sync/showcase.ts` | 수집 → 중복 제거 → 적재 |
+| `src/lib/sync/hada-dedup.ts` | 긱뉴스 ↔ 쇼케이스 중복 정리 (양쪽 수집기 공용) |
 | `src/lib/sync/sources/hada-show.ts` | `/show` 고유 설정 |
 | `src/lib/sync/sources/geeknews.ts` | news.hada.io 목록 파서 (메인·쇼케이스 공용) |
 | `src/lib/sync/http.ts` | UA · 요청 간격 · 백오프 |
