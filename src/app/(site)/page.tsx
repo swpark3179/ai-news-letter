@@ -4,65 +4,45 @@ import Masthead from "@/components/home/Masthead";
 import TrendGroups from "@/components/home/TrendGroups";
 import s from "@/components/home/home.module.css";
 import {
-  countGeekNewsToday,
-  countTrendBySource,
-  getGeekNews,
-  getLeadTrendItem,
-  getTrendItems,
-} from "@/lib/data/content";
-import { getLastSyncRun } from "@/lib/data/ops";
-import { getPublishSettings } from "@/lib/data/settings";
-import { formatIssue, shortDot } from "@/lib/format";
+  countBySource,
+  getFeed,
+  getIssue,
+  getLatestCollectedDate,
+  getTrendDetail,
+  pickLead,
+} from "@/lib/data/feed";
+import { formatIssue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
 export default async function HomePage() {
   const today = new Date();
 
-  const [settings, lead, geek, geekToday, lastGeekSync, lastTrendSync] =
-    await Promise.all([
-      getPublishSettings(),
-      getLeadTrendItem(),
-      getGeekNews(8),
-      countGeekNewsToday(),
-      getLastSyncRun("geeknews"),
-      getLastSyncRun("trend"),
-    ]);
-
-  // 머리기사와 같은 날 수집분만 3열에 노출한다.
-  const trendDate = lead?.collected_date;
-  const [trendItems, trendTotals] = await Promise.all([
-    getTrendItems({ date: trendDate, excludeUrl: lead?.source_url }),
-    countTrendBySource(trendDate),
+  const [issue, trendDate, geek] = await Promise.all([
+    getIssue(),
+    getLatestCollectedDate("trend"),
+    getFeed({ type: "geek", limit: 8 }),
   ]);
 
-  const trendToday = Object.values(trendTotals).reduce((a, b) => a + b, 0);
-  const fetchedTotal = (lastTrendSync?.fetched_count ?? 0) + (lastGeekSync?.fetched_count ?? 0);
+  // 머리기사와 3열은 가장 최근에 수집한 날의 트렌드로 채운다.
+  const trendItems = trendDate ? await getFeed({ type: "trend", date: trendDate }) : [];
+  const leadItem = pickLead(trendItems);
+  const lead = leadItem?.public_id ? await getTrendDetail(leadItem.public_id) : null;
+  const rest = trendItems.filter((t) => t.key !== leadItem?.key);
 
+  // 오늘(KST) 수집분 — 앱 홈 마스트헤드와 같은 숫자다 (mobile_issue).
   const counts: Record<string, string> = {
-    geek: geekToday > 0 ? `오늘 ${geekToday}건` : "수집 대기",
-    trend: trendToday > 0 ? `오늘 ${trendToday}건` : "수집 대기",
-  };
-
-  const syncOk =
-    lastGeekSync?.status === "success" && lastTrendSync?.status !== "failed";
-  const lastSyncAt = lastGeekSync?.finished_at ?? lastGeekSync?.started_at;
-  const lastSync = {
-    ok: syncOk,
-    label: syncOk && lastSyncAt
-      ? `자동 수집 정상 · ${shortDot(lastSyncAt)}`
-      : lastGeekSync?.status === "failed"
-        ? "자동 수집 실패"
-        : "자동 수집 대기 중",
+    geek: issue.geek_count > 0 ? `오늘 ${issue.geek_count}건` : "수집 대기",
+    trend: issue.trend_count > 0 ? `오늘 ${issue.trend_count}건` : "수집 대기",
   };
 
   return (
     <div className={s.wrap}>
       <div className={s.paper}>
         <Masthead
-          settings={settings}
+          issueNo={issue.issue_no}
           counts={counts}
-          lastSync={lastSync}
+          collectedDate={trendDate}
           today={today}
         />
 
@@ -70,23 +50,20 @@ export default async function HomePage() {
           <div className={s.leftCol}>
             <LeadStory lead={lead} />
             <TrendGroups
-              items={trendItems}
-              totals={trendTotals}
-              fetchedTotal={fetchedTotal || trendToday + geekToday}
-              collectedDate={trendDate ?? trendItems[0]?.collected_date}
+              items={rest}
+              totals={countBySource(trendItems)}
+              collectedDate={trendDate ?? undefined}
             />
           </div>
 
           <div className={s.divider} />
 
-          <GeekAside geek={geek} showEn={settings.showEnSubtitles} />
+          <GeekAside geek={geek} />
         </div>
 
         <div className={s.paperFooter}>
           <div className={s.footerBrand}>AI 뉴스레터</div>
-          <div className={s.footerMeta}>
-            {formatIssue(settings.issueNo)} · 발행인 박세원
-          </div>
+          <div className={s.footerMeta}>{formatIssue(issue.issue_no)} · 발행인 박세원</div>
           <div className={s.footerRights}>
             긱뉴스·GitHub·Hacker News·arXiv 원문의 저작권은 각 출처에 있습니다
           </div>

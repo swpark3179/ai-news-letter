@@ -16,7 +16,7 @@ interface Props {
  */
 export default function ErrorNotice({ error, reset }: Props) {
   const msg = error.message ?? "";
-  const isEnv = /환경변수|SUPABASE_URL|SUPABASE_SERVICE_ROLE_KEY/.test(msg);
+  const isEnv = /환경변수|SUPABASE_URL|SUPABASE_ANON_KEY/.test(msg);
   const isNetwork = /fetch failed|ENOTFOUND|ECONNREFUSED|Connect Timeout/i.test(msg);
 
   return (
@@ -40,7 +40,7 @@ export default function ErrorNotice({ error, reset }: Props) {
               </li>
               <li>
                 <code>.env.local</code> 에 <code>SUPABASE_URL</code> 과{" "}
-                <code>SUPABASE_SERVICE_ROLE_KEY</code> 를 채운 뒤 개발 서버 재시작
+                <code>SUPABASE_ANON_KEY</code> 를 채운 뒤 개발 서버 재시작
               </li>
             </ol>
           </>

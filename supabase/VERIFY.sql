@@ -209,3 +209,19 @@ select 'showcase', count(*)
   from public.showcase_items s
   left join public.hada_contents c on c.url = s.url and c.status = 'ok'
  where c.url is null;
+
+
+-- ⑳ 웹이 읽는 열이 뷰 끝에 붙었는가 (0019)
+--    기대: 3행.
+--      mobile_feed          … search_text, collected_date, score, origin_url
+--      mobile_showcase      … search_text, collected_date, score
+--      mobile_trend_detail  … tags, collected_date, origin_url
+--    앞쪽 열(앱이 읽는 것)의 이름 · 순서는 0013 · 0016 과 같아야 한다.
+select c.relname,
+       string_agg(a.attname, ', ' order by a.attnum) as 열
+  from pg_class c
+  join pg_attribute a on a.attrelid = c.oid and a.attnum > 0
+ where c.relnamespace = 'public'::regnamespace
+   and c.relname in ('mobile_feed', 'mobile_showcase', 'mobile_trend_detail')
+ group by c.relname
+ order by c.relname;

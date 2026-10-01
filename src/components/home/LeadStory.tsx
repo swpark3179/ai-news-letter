@@ -2,12 +2,11 @@ import Link from "next/link";
 import { sourceStyleOf } from "@/lib/domain";
 import { shortDateKo } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { repoLabelOf } from "@/lib/trendItem";
-import type { TrendItemRow } from "@/types/db";
+import type { TrendDetail } from "@/types/feed";
 import s from "./home.module.css";
 
 interface Props {
-  lead: TrendItemRow | null;
+  lead: TrendDetail | null;
 }
 
 /** 머리기사 — 3단 조판 + 드롭캡 (디자인 205~230행) */
@@ -23,7 +22,6 @@ export default function LeadStory({ lead }: Props) {
 
   const style = sourceStyleOf(lead.source);
   const href = routes.trend(lead);
-  const repo = repoLabelOf(lead);
 
   // 첫 문단의 첫 글자를 드롭캡으로 떼어 낸다.
   const paragraphs = lead.body.filter((b) => b.type === "text").map((b) => b.t);
@@ -41,7 +39,7 @@ export default function LeadStory({ lead }: Props) {
         </span>
       </div>
 
-      {repo && <div className={s.leadRepo}>{repo}</div>}
+      {lead.repo && <div className={s.leadRepo}>{lead.repo}</div>}
 
       <Link href={href} className={s.leadTitle}>
         <h1 style={{ font: "inherit", letterSpacing: "inherit", margin: 0 }}>
@@ -53,7 +51,7 @@ export default function LeadStory({ lead }: Props) {
 
       <div className={s.leadSources}>
         <a
-          href={lead.source_url}
+          href={lead.key}
           target="_blank"
           rel="noreferrer noopener"
           className={s.srcLink}
@@ -65,7 +63,7 @@ export default function LeadStory({ lead }: Props) {
             {style.tag}
           </span>
           <span className={s.srcLabel}>
-            {style.label} · {lead.raw_title ?? "원본"}
+            {style.label} · {lead.raw_title || "원본"}
           </span>
         </a>
         <span className={s.leadSourcesNote}>원문 1건 요약</span>

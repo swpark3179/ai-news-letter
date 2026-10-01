@@ -1,18 +1,16 @@
 import Link from "next/link";
 import { SRC, TREND_GROUPS, TREND_SOURCE_TO_KIND } from "@/lib/domain";
-import { shortDateKo } from "@/lib/format";
+import { shortDateKo, shortDot } from "@/lib/format";
 import { routes } from "@/lib/routes";
-import { collectedLabelOf, metaTextOf, repoLabelOf } from "@/lib/trendItem";
-import type { TrendItemRow, TrendSource } from "@/types/db";
+import type { TrendSource } from "@/types/db";
+import type { FeedItem } from "@/types/feed";
 import s from "./home.module.css";
 
 interface Props {
-  /** 머리기사를 제외한 오늘의 트렌드 항목 */
-  items: TrendItemRow[];
-  /** 출처별 전체 수집 건수 (요약 대비 표기용) */
+  /** 머리기사를 제외한 그날의 트렌드 항목 */
+  items: FeedItem[];
+  /** 출처별 그날 건수 (머리기사 포함) */
   totals: Record<string, number>;
-  /** 오늘 수집한 원문 총 건수 */
-  fetchedTotal: number;
   /** 3열에 걸린 항목의 수집 날짜 (YYYY-MM-DD) */
   collectedDate?: string;
 }
@@ -27,7 +25,6 @@ function groupLabel(source: TrendSource): string {
 export default function TrendGroups({
   items,
   totals,
-  fetchedTotal,
   collectedDate,
 }: Props) {
   const summarized = items.length + 1; // 머리기사 포함
@@ -39,14 +36,15 @@ export default function TrendGroups({
         {collectedDate && (
           <span className={s.todayDate}>{shortDateKo(collectedDate)} 수집</span>
         )}
-        <span className={s.todayNote}>
-          원문 {fetchedTotal.toLocaleString("ko-KR")}건 중 {summarized}건 요약 (머리기사 포함)
-        </span>
+        <span className={s.todayNote}>{summarized}건 요약 (머리기사 포함)</span>
       </div>
 
       <div className={s.groupGrid}>
         {TREND_GROUPS.map((source, gi) => {
-          const all = items.filter((i) => i.source === source);
+          // 같은 출처 안에서는 지표가 큰 것부터 — arXiv 는 지표가 없어 수집 순서대로 남는다.
+          const all = items
+            .filter((i) => i.source === source)
+            .sort((a, b) => (b.score ?? 0) - (a.score ?? 0));
           const shown = all.slice(0, PER_GROUP);
           const rest = (totals[source] ?? all.length) - shown.length;
           const style = SRC[TREND_SOURCE_TO_KIND[source]];
@@ -76,13 +74,11 @@ export default function TrendGroups({
               {shown.map((item) => {
                 // 저장소 이름이 있으면 그것이 제목이고 AI 제목이 설명으로 내려간다.
                 // 어느 쪽이든 좁은 열에서 글덩어리가 되지 않게 텍스트 블록은 최대 두 개다.
-                const repo = repoLabelOf(item);
-                const lede = repo ? item.title : item.deck;
-                const meta = metaTextOf(item);
-                const collected = collectedLabelOf(item);
+                const repo = item.repo;
+                const lede = repo ? item.title : item.lede;
 
                 return (
-                  <div key={item.source_url} className={s.groupItem}>
+                  <div key={item.key} className={s.groupItem}>
                     <Link
                       href={routes.trend(item)}
                       className={repo ? s.groupItemRepo : s.groupItemTitle}
@@ -91,10 +87,10 @@ export default function TrendGroups({
                     </Link>
                     {lede && <div className={s.groupItemLede}>{lede}</div>}
                     <div className={s.groupItemMeta}>
-                      {collected && <span className={s.metaDate}>{collected}</span>}
-                      {meta && <span className={s.metaMono}>{meta}</span>}
+                      <span className={s.metaDate}>{shortDot(item.collected_date)}</span>
+                      {item.meta && <span className={s.metaMono}>{item.meta}</span>}
                       <a
-                        href={item.source_url}
+                        href={item.open_url}
                         target="_blank"
                         rel="noreferrer noopener"
                         className={s.originLink}

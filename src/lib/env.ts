@@ -2,6 +2,9 @@
  * 환경변수 접근을 한 곳에 모은다.
  *
  * 브라우저로 나가는 값은 없다. Supabase 키는 서버에서만 읽는다 (requireServerEnv 사용).
+ *
+ * 웹이 쓰는 키는 anon 하나다. service_role 키는 수집 스크립트만 쓰고, 그쪽은
+ * lib/supabase/admin-client.ts 가 process.env 에서 직접 읽는다.
  */
 
 function requireServerEnv(name: string): string {
@@ -23,7 +26,7 @@ function requireServerEnv(name: string): string {
  * 먼저 확인한다. 빈 배열이면 설정이 끝난 것이다.
  */
 export function missingSupabaseEnv(): string[] {
-  return ["SUPABASE_URL", "SUPABASE_SERVICE_ROLE_KEY"].filter(
+  return ["SUPABASE_URL", "SUPABASE_ANON_KEY"].filter(
     (k) => !process.env[k]?.trim(),
   );
 }
@@ -47,8 +50,9 @@ export const supabaseEnv = {
   get url() {
     return normalizeSupabaseUrl(requireServerEnv("SUPABASE_URL"));
   },
-  get serviceRoleKey() {
-    return requireServerEnv("SUPABASE_SERVICE_ROLE_KEY");
+  /** 모바일 앱과 같은 anon 키 (publishable 키도 된다) */
+  get anonKey() {
+    return requireServerEnv("SUPABASE_ANON_KEY");
   },
 };
 

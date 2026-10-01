@@ -1,24 +1,23 @@
 import Link from "next/link";
 import { routes } from "@/lib/routes";
 import { shortDot } from "@/lib/format";
-import type { GeekNewsRow } from "@/types/db";
+import type { FeedItem } from "@/types/feed";
 import s from "./home.module.css";
 
 interface Props {
-  geek: GeekNewsRow[];
-  showEn: boolean;
+  geek: FeedItem[];
 }
 
 /** 우측 사이드바 — 긱뉴스 데일리 (디자인 263~305행) */
-export default function GeekAside({ geek, showEn }: Props) {
-  const updatedAt = geek[0]?.collected_at ?? geek[0]?.published_at;
+export default function GeekAside({ geek }: Props) {
+  const updatedAt = geek[0]?.collected_date;
 
   return (
     <aside className={s.aside}>
       <div className={s.asideHead}>
         <div>
           <div className={s.asideTitle}>긱뉴스 데일리</div>
-          {showEn && <div className={s.asideEn}>GeekNews Daily</div>}
+          <div className={s.asideEn}>GeekNews Daily</div>
         </div>
         <span className={s.asideUpdated}>
           {updatedAt ? `${shortDot(updatedAt)} 갱신` : "수집 대기"}
@@ -33,12 +32,12 @@ export default function GeekAside({ geek, showEn }: Props) {
       )}
 
       {geek.map((g) => (
-        <div key={g.url} className={s.geekItem}>
+        <div key={g.key} className={s.geekItem}>
           <div className={s.geekRow}>
             <span className={s.geekDate}>{shortDot(g.published_at)}</span>
             <div className={s.geekBody}>
               <a
-                href={g.url}
+                href={g.open_url}
                 target="_blank"
                 rel="noreferrer noopener"
                 className={s.geekTitle}
@@ -46,10 +45,10 @@ export default function GeekAside({ geek, showEn }: Props) {
                 {g.title}
               </a>
               <div className={s.geekMeta}>
-                <span className={s.geekSrc}>{g.source_domain ?? "news.hada.io"}</span>
-                {g.external_url && (
+                <span className={s.geekSrc}>{g.host || "news.hada.io"}</span>
+                {g.origin_url && (
                   <a
-                    href={g.external_url}
+                    href={g.origin_url}
                     target="_blank"
                     rel="noreferrer noopener"
                     className={s.geekOrigin}
@@ -57,7 +56,7 @@ export default function GeekAside({ geek, showEn }: Props) {
                     원문 ↗
                   </a>
                 )}
-                <span className={s.geekPts}>{g.points}</span>
+                <span className={s.geekPts}>{g.score ?? 0}</span>
               </div>
             </div>
           </div>

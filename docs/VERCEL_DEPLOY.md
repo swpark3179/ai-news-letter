@@ -13,9 +13,9 @@
 ```
    브라우저 ──── HTTPS ────▶  Vercel  (Next.js 16 · 화면만)
                                  │
-                                 │ service_role 키로 서버에서만 읽는다
+                                 │ anon 키로 mobile_* 뷰만 읽는다 (서버 컴포넌트)
                                  ▼
-   모바일 앱 ── anon 키 ──▶  Supabase  (Postgres — 앱은 mobile_* 뷰 5개만)
+   모바일 앱 ── anon 키 ──▶  Supabase  (Postgres — 웹 · 앱 모두 mobile_* 뷰 5개만)
                                  ▲
                                  │ 매일 07:00 · 07:10 · 07:20 KST
                           GitHub Actions  (긱뉴스 · 트렌드 · 쇼케이스 수집 + LLM 기사 작성)
@@ -69,20 +69,21 @@ Supabase 키가 없어도 빌드는 통과합니다 (대신 화면에 셋업 안
 | 이름 | 값 | 빠뜨리면 |
 |---|---|---|
 | `SUPABASE_URL` | `https://<ref>.supabase.co` — Supabase → Project Settings → API 의 **Project URL** | 셋업 안내 화면만 뜸 |
-| `SUPABASE_SERVICE_ROLE_KEY` | 같은 화면의 **service_role** 키 (`anon` 아님) | 같음 |
+| `SUPABASE_ANON_KEY` | 같은 화면의 **anon** 키 (publishable 키도 됩니다). 모바일 앱과 같은 값 | 같음 |
 
-이것이 전부입니다. LLM 키와 수집 설정은 GitHub Actions 가 자기 Secrets 로 쓰므로
-Vercel 에는 넣지 않습니다.
+이것이 전부입니다. **`service_role` 키는 Vercel 에 넣지 않습니다** — 웹은 anon 키로
+모바일 뷰만 읽고, 표에 쓰는 것은 GitHub Actions 의 수집기뿐입니다. LLM 키와 수집
+설정도 GitHub Actions 의 Secrets 에만 둡니다.
 
 넣을 때 주의할 것:
 
-1. **처음에는 Production 에만** 넣으세요. Preview 에도 같은 키를 넣으면 PR 프리뷰
-   배포가 운영 DB 를 읽습니다(웹은 읽기만 하지만 service_role 키가 프리뷰에도 퍼집니다).
+1. **Production 과 Preview 둘 다** 넣어도 됩니다. anon 키로는 공개 뷰를 읽는 것밖에
+   할 수 없어서, PR 프리뷰가 실제 데이터로 그려져도 운영 DB 에 아무 영향이 없습니다.
 2. `SUPABASE_URL` 에는 Project URL 만 넣으세요. 대시보드에 같이 노출되는
    `https://.../rest/v1/` 를 복사하면 경로가 두 번 붙습니다 (코드가 걷어내지만
    처음부터 맞게 넣는 편이 낫습니다).
-3. `SUPABASE_SERVICE_ROLE_KEY` 는 **Sensitive** 로 저장하세요.
-   `server-only` 로 보호되어 브라우저 번들에는 들어가지 않습니다.
+3. anon 키는 공개 키입니다(앱 바이너리에도 들어 있습니다). 그래도 웹은 서버
+   컴포넌트에서만 읽고 `server-only` 로 묶어 두어 브라우저 번들에는 들어가지 않습니다.
 4. **`NODE_ENV` 는 넣지 마세요.** Vercel 과 Next 가 빌드 · 실행 단계마다 알아서
    정합니다. 직접 넣으면 개발용 동작이 섞이거나 빌드 경고가 납니다.
 
@@ -93,7 +94,8 @@ Vercel 에는 넣지 않습니다.
 `SESSION_SECRET` · `NEXT_PUBLIC_SSO_MODE` · `NEXT_PUBLIC_SSO_TRAY_WS_URL` ·
 `NEXT_PUBLIC_SSO_TRAY_APP_CODE` · `SSO_DECODE_KEY` · `SSO_ALLOW_AUTO_CREATE` ·
 `SSO_ALLOW_UNVERIFIED_PAYLOAD` · `SSO_DEBUG_TOKEN` · `GOOGLE_*` ·
-`ALLOWED_HOSTED_DOMAINS` · `APPLE_*` · `SUPABASE_STORAGE_BUCKET` · `NODE_ENV`
+`ALLOWED_HOSTED_DOMAINS` · `APPLE_*` · `SUPABASE_STORAGE_BUCKET` · `NODE_ENV` ·
+`SUPABASE_SERVICE_ROLE_KEY` (웹이 anon 키로 바뀐 배포가 올라간 뒤에)
 (LLM · 수집 관련 값도 Vercel 에서는 쓰지 않습니다 — 관리자 화면의 수동 실행 버튼이
 없어졌습니다.)
 
@@ -114,7 +116,7 @@ npm i -g vercel
 vercel login
 vercel link
 vercel env add SUPABASE_URL production
-vercel env add SUPABASE_SERVICE_ROLE_KEY production
+vercel env add SUPABASE_ANON_KEY production
 vercel --prod
 ```
 

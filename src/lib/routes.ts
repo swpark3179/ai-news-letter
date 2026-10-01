@@ -1,4 +1,4 @@
-import type { SectionKey, TrendItemRow } from "@/types/db";
+import type { SectionKey } from "@/types/db";
 
 /**
  * 링크 경로를 한 곳에서 만든다.
@@ -16,7 +16,8 @@ export const routes = {
       : `/sections/${key}`;
   },
 
-  trend(item: Pick<TrendItemRow, "public_id">): string {
-    return `/articles/trend/${item.public_id}`;
+  /** 트렌드 행은 public_id 가 항상 있다 (generated column). 없으면 목록으로 보낸다. */
+  trend(item: { public_id: string | null }): string {
+    return item.public_id ? `/articles/trend/${item.public_id}` : "/sections/trend";
   },
 };

@@ -10,8 +10,7 @@ import {
 } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import { issueNum, shortDot } from "@/lib/format";
-import { repoLabelOf } from "@/lib/trendItem";
-import { getGeekNews, getTrendItems } from "@/lib/data/content";
+import { getFeed } from "@/lib/data/feed";
 import type { SectionKey, TrendSource } from "@/types/db";
 import s from "@/components/section/section.module.css";
 
@@ -86,7 +85,7 @@ export default async function SectionPage({ params, searchParams }: Props) {
 /* ------------------------------------------------------------------ */
 
 async function GeekList() {
-  const rows = await getGeekNews(60);
+  const rows = await getFeed({ type: "geek", limit: 60 });
 
   if (rows.length === 0) {
     return (
@@ -100,7 +99,7 @@ async function GeekList() {
   return (
     <>
       {rows.map((g) => (
-        <div key={g.url} className={s.row}>
+        <div key={g.key} className={s.row}>
           <div>
             <div className={s.rowDate}>{shortDot(g.published_at)}</div>
             <div className={s.rowNum}>NO.{issueNum(g.published_at)}</div>
@@ -108,17 +107,26 @@ async function GeekList() {
           <div>
             <div className={s.rowKicker}>긱뉴스</div>
             <a
-              href={g.url}
+              href={g.open_url}
               target="_blank"
               rel="noreferrer noopener"
               className={s.rowTitleLink}
             >
               <span className={s.rowTitle}>{g.title}</span>
             </a>
-            <div className={s.rowDeck}>{g.summary}</div>
+            <div className={s.rowDeck}>{g.lede}</div>
             <div className={s.rowTags}>
-              {g.source_domain && <span className={s.tag}>{g.source_domain}</span>}
-              {g.submitter && <span className={s.tag}>@{g.submitter}</span>}
+              {g.host && <span className={s.tag}>{g.host}</span>}
+              {g.origin_url && (
+                <a
+                  href={g.origin_url}
+                  target="_blank"
+                  rel="noreferrer noopener"
+                  className={s.tag}
+                >
+                  원문 ↗
+                </a>
+              )}
             </div>
           </div>
           <div className={s.rowRight}>
@@ -128,9 +136,7 @@ async function GeekList() {
             >
               {SRC.gk.tag}
             </span>
-            <div className={s.rowMeta}>
-              {g.points} points · 댓글 {g.comment_count}
-            </div>
+            <div className={s.rowMeta}>{g.meta}</div>
           </div>
         </div>
       ))}
@@ -148,7 +154,7 @@ async function TrendList({ filter }: { filter: string }) {
       ? (filter as TrendSource)
       : undefined;
 
-  const rows = await getTrendItems({ source, limit: 80 });
+  const rows = await getFeed({ type: "trend", source, limit: 80 });
 
   if (rows.length === 0) {
     return (
@@ -164,18 +170,20 @@ async function TrendList({ filter }: { filter: string }) {
   return (
     <>
       {rows.map((t) => {
-        const style = sourceStyleOf(t.source);
+        // mobile_feed 의 트렌드 행은 source 가 항상 있다.
+        const src = t.source ?? "github";
+        const style = sourceStyleOf(src);
         // 저장소 이름이 있으면 그것이 제목이고 AI 제목이 바로 아래 설명 줄이 된다.
-        const repo = repoLabelOf(t);
+        const repo = t.repo;
         return (
-          <div key={t.source_url} className={s.row}>
+          <div key={t.key} className={s.row}>
             <div>
               <div className={s.rowDate}>{shortDot(t.collected_date)}</div>
               <div className={s.rowNum}>수집</div>
             </div>
             <div>
               <div className={s.rowKicker}>
-                트렌드 브리핑 · {SRC[TREND_SOURCE_TO_KIND[t.source]].label}
+                트렌드 브리핑 · {SRC[TREND_SOURCE_TO_KIND[src]].label}
                 {t.source_variant ? ` (${t.source_variant})` : ""}
               </div>
               <Link href={routes.trend(t)} className={s.rowTitleLink}>
@@ -184,14 +192,7 @@ async function TrendList({ filter }: { filter: string }) {
                 </span>
               </Link>
               {repo && <div className={s.rowLede}>{t.title}</div>}
-              {t.deck && <div className={s.rowDeck}>{t.deck}</div>}
-              <div className={s.rowTags}>
-                {t.tags.map((tag) => (
-                  <span key={tag} className={s.tag}>
-                    {tag}
-                  </span>
-                ))}
-              </div>
+              {t.lede && <div className={s.rowDeck}>{t.lede}</div>}
             </div>
             <div className={s.rowRight}>
               <span
@@ -200,9 +201,7 @@ async function TrendList({ filter }: { filter: string }) {
               >
                 {style.tag}
               </span>
-              <div className={s.rowMeta}>
-                {t.llm_provider ? `${t.llm_provider} 요약` : "자동 요약"}
-              </div>
+              <div className={s.rowMeta}>{t.meta || "자동 요약"}</div>
             </div>
           </div>
         );
