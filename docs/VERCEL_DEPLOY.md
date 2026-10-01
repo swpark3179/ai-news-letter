@@ -50,7 +50,10 @@ npm run build
 Route (app)
 ┌ ƒ /
 ├ ○ /_not-found
+├ ƒ /articles/geek/[...ref]
+├ ƒ /articles/show/[...ref]
 ├ ƒ /articles/trend/[publicId]
+├ ƒ /search
 └ ƒ /sections/[section]
 ```
 
@@ -126,7 +129,7 @@ vercel --prod
 
 | 설정 | 위치 | 권장값 | 이유 |
 |---|---|---|---|
-| **Function Region** | Settings → Functions | Supabase 와 같은 리전 | 운영 Supabase 는 `ap-northeast-1`(도쿄)이라 **Tokyo (hnd1)** 입니다. 기본값 `iad1`(워싱턴)이면 매 쿼리가 태평양을 왕복합니다 |
+| **Function Region** | Settings → Functions | 독자와 Supabase 가까이 | 운영은 **Seoul (icn1)** 입니다 — 독자가 한국에 있고, Supabase(`ap-northeast-1`, 도쿄)와도 가깝습니다. 기본값 `iad1`(워싱턴)이면 매 쿼리가 태평양을 왕복합니다 |
 | **Deployment Protection** | Settings → Deployment Protection | 5절 참고 | 누가 사이트를 볼 수 있는지 |
 
 리전을 바꾼 뒤에는 **재배포**해야 적용됩니다.
@@ -155,11 +158,14 @@ Hacker News · arXiv 의 공개 글과 그것을 요약한 기사뿐이고, **�
 
 | # | 동작 | 기대 결과 |
 |---|---|---|
-| 1 | `/` | 1면 — 머리기사 · 출처 3열 · 긱뉴스 사이드바 |
-| 2 | `/sections/geek` | 긱뉴스 목록 |
-| 3 | `/sections/trend?filter=github` | GitHub 트렌드만 |
-| 4 | 트렌드 기사 하나 열기 | `/articles/trend/<id>` 상세 |
-| 5 | `/login` · `/admin` · `/me` | 404 (지운 화면) |
+| 1 | `/` | 1면 — 머리기사 · GitHub/HN/arXiv 3열 · 긱뉴스/쇼케이스 사이드바, 그날 것 전부 |
+| 2 | `/sections/geek` | 긱뉴스 최근 7일, 날짜마다 구분 · 「더 이전 7일」로 넘어감 |
+| 3 | `/sections/hn?q=agent` | 그 카테고리 안 검색 |
+| 4 | `/search?q=claude` | 다섯 카테고리 검색 결과 |
+| 5 | 긱뉴스 글 하나 열기 | `/articles/geek/<id>` — 본문이 이 사이트 안에서 보임 |
+| 6 | 트렌드 기사 하나 열기 | `/articles/trend/<id>` 상세 |
+| 7 | `/sections/trend?filter=hn` | `/sections/hn` 으로 308 (예전 주소) |
+| 8 | `/login` · `/admin` · `/me` | 404 (지운 화면) |
 
 > **화면이 텅 비어 있으면** 데이터가 없는 것입니다. GitHub Actions 워크플로를
 > 수동 실행하거나, 로컬에서 `npm run sync:geeknews` 를 한 번 돌리세요.

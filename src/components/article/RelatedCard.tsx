@@ -9,12 +9,18 @@ export interface RelatedItem {
 }
 
 /** 사이드바 "함께 읽기" (디자인 557~568행) */
-export default function RelatedCard({ items }: { items: RelatedItem[] }) {
+export default function RelatedCard({
+  items,
+  title = "함께 읽기",
+}: {
+  items: RelatedItem[];
+  title?: string;
+}) {
   if (items.length === 0) return null;
 
   return (
     <div className={s.card}>
-      <div className={s.cardTitle}>함께 읽기</div>
+      <div className={s.cardTitle}>{title}</div>
       <div className={s.relatedList}>
         {items.map((r) => (
           <Link key={r.href} href={r.href} className={s.relatedItem}>

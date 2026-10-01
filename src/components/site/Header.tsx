@@ -5,9 +5,10 @@ import { usePathname } from "next/navigation";
 import { NAV_ITEMS } from "@/lib/domain";
 import s from "./Header.module.css";
 
-function isActive(pathname: string, match: string): boolean {
-  if (match === "/") return pathname === "/";
-  return pathname === match || pathname.startsWith(`${match}/`);
+function isActive(pathname: string, match: readonly string[]): boolean {
+  return match.some((m) =>
+    m === "/" ? pathname === "/" : pathname === m || pathname.startsWith(`${m}/`),
+  );
 }
 
 export default function Header() {

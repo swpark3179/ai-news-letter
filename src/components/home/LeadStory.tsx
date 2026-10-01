@@ -9,7 +9,10 @@ interface Props {
   lead: TrendDetail | null;
 }
 
-/** 머리기사 — 3단 조판 + 드롭캡 (디자인 205~230행) */
+/**
+ * 머리기사 — 3단 조판 + 드롭캡 (디자인 205~230행).
+ * 좁은 화면에서는 단 수가 줄어든다 (home.module.css 의 .leadBody).
+ */
 export default function LeadStory({ lead }: Props) {
   if (!lead) {
     return (
@@ -32,10 +35,10 @@ export default function LeadStory({ lead }: Props) {
   return (
     <>
       <div className={s.leadKickerRow}>
-        <span className={s.leadKicker}>트렌드 브리핑</span>
+        <span className={s.leadKicker}>오늘의 머리기사</span>
         <span className={s.dotSep} />
         <span className={s.leadNote}>
-          {shortDateKo(lead.collected_date)} 수집
+          {style.label} · {shortDateKo(lead.collected_date)} 수집
         </span>
       </div>
 

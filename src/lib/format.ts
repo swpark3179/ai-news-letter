@@ -82,6 +82,23 @@ export function kstDateString(v: string | number | Date = new Date()): string {
   return ymdParts(toDate(v)).join("-");
 }
 
+const YMD = /^(\d{4})-(\d{2})-(\d{2})$/;
+
+/** 'YYYY-MM-DD' 이고 실제로 있는 날인가 — 주소창에서 온 값을 거르는 용도 */
+export function isYmd(v: unknown): v is string {
+  if (typeof v !== "string") return false;
+  const m = YMD.exec(v);
+  if (!m) return false;
+  const d = new Date(Date.UTC(+m[1], +m[2] - 1, +m[3]));
+  return d.toISOString().slice(0, 10) === v;
+}
+
+/** 'YYYY-MM-DD' 에 n 일을 더한다 (음수면 뺀다). 날짜만 다루므로 시간대가 끼지 않는다. */
+export function addDays(ymd: string, n: number): string {
+  const [y, m, d] = ymd.split("-").map(Number);
+  return new Date(Date.UTC(y, m - 1, d + n)).toISOString().slice(0, 10);
+}
+
 /** 긱뉴스 스타일 상대 시간: '10시간전' / '2일전' / '방금' */
 export function relativeKo(
   v: string | number | Date,

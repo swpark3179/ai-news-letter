@@ -4,10 +4,10 @@ import type { Metadata } from "next";
 import ArticleBody from "@/components/article/ArticleBody";
 import RelatedCard, { type RelatedItem } from "@/components/article/RelatedCard";
 import s from "@/components/article/article.module.css";
-import { SECTION_MAP, SRC, TREND_SOURCE_TO_KIND, sourceStyleOf } from "@/lib/domain";
+import { CATEGORY_MAP, SRC, TREND_SOURCE_TO_KIND, categoryOfTrend, sourceStyleOf } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import { dotDate } from "@/lib/format";
-import { getFeed, getTrendDetail } from "@/lib/data/feed";
+import { getCategoryDay, getTrendDetail } from "@/lib/data/feed";
 
 export const dynamic = "force-dynamic";
 
@@ -36,19 +36,29 @@ export default async function TrendArticlePage({ params }: Props) {
   const style = sourceStyleOf(item.source);
   const kindLabel = SRC[TREND_SOURCE_TO_KIND[item.source]].label;
 
-  const siblings = await getFeed({ type: "trend", limit: 4, excludeKey: item.key });
-  const related: RelatedItem[] = siblings.slice(0, 3).map((t) => ({
-    href: routes.trend(t),
-    kicker: SECTION_MAP.trend.ko,
-    title: t.title,
-    byline: `${SRC[TREND_SOURCE_TO_KIND[t.source ?? "github"]].tag} · ${dotDate(t.collected_date)}`,
-  }));
+  // 함께 읽기 — 같은 날 같은 출처에서 들어온 것 중 지표가 큰 순서
+  const category = CATEGORY_MAP[categoryOfTrend(item.source)];
+  const sameDay = await getCategoryDay(category.key, item.collected_date);
+  const related: RelatedItem[] = sameDay
+    .filter((t) => t.key !== item.key)
+    .slice(0, 4)
+    .flatMap((t) => {
+      // trend_items.source 가 geeknews 인 행은 긱뉴스 카테고리로 묶여 이웃이 긱뉴스 글이 된다.
+      const href = routes.item(t);
+      return href ? [{ t, href }] : [];
+    })
+    .map(({ t, href }) => ({
+      href,
+      kicker: t.repo ?? category.badge.label,
+      title: t.title,
+      byline: t.meta || dotDate(t.collected_date),
+    }));
 
   return (
     <div className={s.wrap}>
       <div className={s.paper}>
-        <Link href={routes.section("trend")} className={s.back}>
-          ← 트렌드 브리핑
+        <Link href={routes.category(category.key)} className={s.back}>
+          ← {category.ko}
         </Link>
 
         <div className={s.head}>
@@ -153,7 +163,7 @@ export default async function TrendArticlePage({ params }: Props) {
                 </div>
               )}
 
-              <RelatedCard items={related} />
+              <RelatedCard items={related} title="같은 날 들어온 글" />
             </div>
           </aside>
         </div>

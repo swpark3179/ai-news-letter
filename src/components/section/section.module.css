@@ -32,14 +32,18 @@
 .headRow {
   display: flex;
   align-items: flex-end;
-  gap: 14px;
-  border-bottom: 3px solid var(--gray-900);
-  padding-bottom: 14px;
+  gap: 14px 28px;
   flex-wrap: wrap;
 }
 
+.headText {
+  flex: 1 1 320px;
+  min-width: 0;
+}
+
 .title {
-  font: 900 40px/1 var(--font-sans);
+  margin: 0;
+  font: 900 40px/1.05 var(--font-sans);
   letter-spacing: -1.6px;
 }
 
@@ -49,11 +53,55 @@
   color: var(--gray-600);
 }
 
+/* 카테고리 알약 — 머리의 굵은 괘선 위에 선다 */
 .filters {
-  margin-left: auto;
+  margin-top: 20px;
+  padding-bottom: 14px;
+  border-bottom: 3px solid var(--gray-900);
   display: flex;
   gap: 8px;
   flex-wrap: wrap;
+}
+
+/* ---------- 검색 입력 ---------- */
+
+.search {
+  flex: 0 1 380px;
+  min-width: 0;
+  display: flex;
+  gap: 6px;
+}
+
+.searchInput {
+  flex: 1 1 auto;
+  min-width: 0;
+  height: 38px;
+  padding: 0 12px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  background: #fff;
+  font-size: 14px;
+  outline: none;
+}
+
+.searchInput:focus {
+  border-color: var(--purple-600);
+  box-shadow: var(--ring-primary);
+}
+
+.searchBtn {
+  flex-shrink: 0;
+  height: 38px;
+  padding: 0 16px;
+  border-radius: var(--radius-md);
+  background: var(--gray-900);
+  color: #fff;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.searchBtn:hover {
+  background: var(--gray-700);
 }
 
 .filter {
@@ -88,9 +136,71 @@
   padding: 0 40px 44px;
 }
 
+/* ---------- 목록 머리 · 날짜 구분 ---------- */
+
+.summary {
+  padding: 16px 0 2px;
+  display: flex;
+  align-items: baseline;
+  gap: 6px 12px;
+  flex-wrap: wrap;
+  font-size: 12.5px;
+  color: var(--gray-600);
+}
+
+.summaryRange {
+  font-family: var(--font-mono);
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.summaryActions {
+  margin-left: auto;
+  display: flex;
+  gap: 14px;
+  flex-wrap: wrap;
+}
+
+.summaryLink {
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.day {
+  margin-top: 22px;
+}
+
+/** 날짜 머리는 스크롤해도 헤더(60px) 바로 아래 붙어 있어 지금 어느 날을 읽는지 알 수 있다 */
+.dayHead {
+  position: sticky;
+  top: 60px;
+  z-index: 1;
+  margin: 0;
+  padding: 10px 0 8px;
+  background: #fff;
+  border-bottom: 2px solid var(--gray-900);
+  display: flex;
+  align-items: baseline;
+  gap: 10px;
+}
+
+.dayDate {
+  font: 800 17px/1.2 var(--font-sans);
+  letter-spacing: -0.4px;
+  color: var(--gray-900);
+}
+
+.dayCount {
+  font-size: 12px;
+  font-weight: 500;
+  color: var(--gray-500);
+}
+
+/* ---------- 한 줄 ---------- */
+
 .row {
   display: grid;
-  grid-template-columns: 96px minmax(0, 1fr) 180px;
+  grid-template-columns: 36px minmax(0, 1fr) 180px;
   gap: 24px;
   padding: 22px 0;
   border-bottom: 1px solid var(--gray-200);
@@ -99,24 +209,16 @@
   color: inherit;
 }
 
-.row:hover {
-  background: var(--gray-25);
-  text-decoration: none;
-  color: inherit;
-}
-
-.rowDate {
+.rowIndex {
+  padding-top: 1px;
   font-family: var(--font-mono);
   font-size: 12px;
-  color: var(--gray-900);
   font-weight: 700;
+  color: var(--gray-400);
 }
 
-.rowNum {
-  margin-top: 4px;
-  font-family: var(--font-mono);
-  font-size: 10.5px;
-  color: var(--gray-400);
+.rowMain {
+  min-width: 0;
 }
 
 .rowKicker {
@@ -204,6 +306,13 @@
   font-family: var(--font-mono);
 }
 
+.outLink {
+  font-size: 11px;
+  font-weight: 500;
+  padding: 3px 0;
+  white-space: nowrap;
+}
+
 .rowRight {
   display: flex;
   flex-direction: column;
@@ -226,6 +335,44 @@
   text-align: right;
 }
 
+/* ---------- 넘기기 ---------- */
+
+.pager {
+  padding-top: 26px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.pagerLink {
+  padding: 9px 15px;
+  border: 1px solid var(--gray-300);
+  border-radius: var(--radius-md);
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--gray-700);
+  white-space: nowrap;
+}
+
+.pagerLink:hover {
+  background: var(--gray-50);
+  color: var(--gray-900);
+  text-decoration: none;
+}
+
+.pagerEnd {
+  font-size: 12px;
+  color: var(--gray-400);
+}
+
+.moreLink {
+  display: inline-block;
+  margin-top: 14px;
+  font-size: 12.5px;
+  font-weight: 600;
+}
+
 .empty {
   padding: 64px 0;
   text-align: center;
@@ -239,4 +386,79 @@
   font-family: var(--font-mono);
   font-size: 11.5px;
   color: var(--gray-400);
+}
+
+/* ---------- 좁은 화면 ---------- */
+
+@media (max-width: 860px) {
+  .row {
+    grid-template-columns: 30px minmax(0, 1fr);
+    gap: 8px 16px;
+  }
+
+  /* 배지 · 지표는 본문 아래 한 줄로 내린다 */
+  .rowRight {
+    grid-column: 2;
+    flex-direction: row;
+    align-items: center;
+    flex-wrap: wrap;
+  }
+
+  .rowMeta {
+    text-align: left;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 0 0 48px;
+  }
+
+  .paper {
+    border: none;
+    box-shadow: none;
+  }
+
+  .head {
+    padding: 20px 16px 0;
+  }
+
+  .list {
+    padding: 0 16px 32px;
+  }
+
+  .title {
+    font-size: 30px;
+    letter-spacing: -1px;
+  }
+
+  .search {
+    flex: 1 1 100%;
+  }
+
+  .row {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 18px 0;
+  }
+
+  .rowIndex {
+    display: none;
+  }
+
+  .rowRight {
+    grid-column: 1;
+  }
+
+  .rowTitle {
+    font-size: 18.5px;
+    letter-spacing: -0.5px;
+  }
+
+  .rowRepo {
+    font-size: 16px;
+  }
+
+  .summaryActions {
+    margin-left: 0;
+  }
 }

@@ -41,8 +41,12 @@ export interface Block {
   rows?: string[][];
 }
 
-export type SectionKey = "geek" | "trend";
-export type SourceKind = "gh" | "hn" | "ax" | "gk";
+/**
+ * 웹 지면의 카테고리 — 앱의 탭 · 칩과 같은 다섯 갈래다.
+ * geek · show 는 news.hada.io 목록, github · hn · arxiv 는 trend_items.source 다.
+ */
+export type CategoryKey = "geek" | "show" | "github" | "hn" | "arxiv";
+export type SourceKind = "gh" | "hn" | "ax" | "gk" | "sh";
 export type TrendSource = "github" | "hn" | "arxiv" | "geeknews";
 export type LlmProviderName = "gemini" | "openai";
 /** 수집 파이프라인 종류 — sync_runs.kind 의 CHECK 제약과 같은 값을 유지한다. */

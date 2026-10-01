@@ -3,46 +3,34 @@ import LeadStory from "@/components/home/LeadStory";
 import Masthead from "@/components/home/Masthead";
 import TrendGroups from "@/components/home/TrendGroups";
 import s from "@/components/home/home.module.css";
-import {
-  countBySource,
-  getFeed,
-  getIssue,
-  getLatestCollectedDate,
-  getTrendDetail,
-  pickLead,
-} from "@/lib/data/feed";
+import { getEdition, getIssue, getTrendDetail, pickLead } from "@/lib/data/feed";
 import { formatIssue } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
+/**
+ * 1면 — 다섯 카테고리를 마지막으로 수집한 날 것으로 한 장을 채운다 (getEdition).
+ *
+ *   머리기사   그날 GitHub 에서 기간 별이 가장 많은 저장소
+ *   3열        GitHub · Hacker News · arXiv — 그날 것 전부
+ *   사이드바   긱뉴스 · 쇼케이스 — 그날 것 전부
+ */
 export default async function HomePage() {
   const today = new Date();
 
-  const [issue, trendDate, geek] = await Promise.all([
-    getIssue(),
-    getLatestCollectedDate("trend"),
-    getFeed({ type: "geek", limit: 8 }),
-  ]);
+  const [issue, edition] = await Promise.all([getIssue(), getEdition()]);
+  const { slots } = edition;
 
-  // 머리기사와 3열은 가장 최근에 수집한 날의 트렌드로 채운다.
-  const trendItems = trendDate ? await getFeed({ type: "trend", date: trendDate }) : [];
-  const leadItem = pickLead(trendItems);
+  const leadItem = pickLead(slots.github.items);
   const lead = leadItem?.public_id ? await getTrendDetail(leadItem.public_id) : null;
-  const rest = trendItems.filter((t) => t.key !== leadItem?.key);
-
-  // 오늘(KST) 수집분 — 앱 홈 마스트헤드와 같은 숫자다 (mobile_issue).
-  const counts: Record<string, string> = {
-    geek: issue.geek_count > 0 ? `오늘 ${issue.geek_count}건` : "수집 대기",
-    trend: issue.trend_count > 0 ? `오늘 ${issue.trend_count}건` : "수집 대기",
-  };
 
   return (
     <div className={s.wrap}>
       <div className={s.paper}>
         <Masthead
           issueNo={issue.issue_no}
-          counts={counts}
-          collectedDate={trendDate}
+          editionDate={edition.date}
+          slots={slots}
           today={today}
         />
 
@@ -50,15 +38,15 @@ export default async function HomePage() {
           <div className={s.leftCol}>
             <LeadStory lead={lead} />
             <TrendGroups
-              items={rest}
-              totals={countBySource(trendItems)}
-              collectedDate={trendDate ?? undefined}
+              slots={{ github: slots.github, hn: slots.hn, arxiv: slots.arxiv }}
+              leadKey={lead ? leadItem?.key : undefined}
+              today={today}
             />
           </div>
 
           <div className={s.divider} />
 
-          <GeekAside geek={geek} />
+          <GeekAside geek={slots.geek} show={slots.show} today={today} />
         </div>
 
         <div className={s.paperFooter}>
