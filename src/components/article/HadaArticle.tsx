@@ -82,7 +82,8 @@ export default async function HadaArticle({
             {item.host ? ` · ${item.host}` : ""}
           </div>
           <h1 className={s.title}>{item.title}</h1>
-          {item.lede && <p className={s.deck}>{item.lede}</p>}
+          {/* 요약은 본문 첫머리를 자른 것이라 본문이 있으면 되풀이하지 않는다 (앱 HadaDetailScreen 과 같음). */}
+          {!content && item.lede && <p className={s.deck}>{item.lede}</p>}
         </div>
 
         <div className={s.bylineBar}>
