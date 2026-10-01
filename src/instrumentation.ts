@@ -1,7 +1,7 @@
 /**
  * Next 서버가 뜰 때 한 번 실행된다.
  *
- * 사내 프록시 환경에서는 Node 의 fetch 가 HTTP_PROXY 를 무시하기 때문에
+ * 프록시 환경에서는 Node 의 fetch 가 HTTP_PROXY 를 무시하기 때문에
  * Supabase 클라이언트 호출이 전부 "TypeError: fetch failed" 로 죽는다.
  * 첫 요청이 들어오기 전에 전역 디스패처를 프록시로 바꿔 둔다.
  *
@@ -14,6 +14,6 @@ export async function register() {
   const { enableEnvProxy } = await import("@/lib/proxy");
   const proxy = enableEnvProxy();
   if (proxy) {
-    console.log(`[instrumentation] 사내 프록시 적용: ${proxy}`);
+    console.log(`[instrumentation] 프록시 적용: ${proxy}`);
   }
 }

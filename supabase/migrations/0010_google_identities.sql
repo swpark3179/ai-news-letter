@@ -116,12 +116,12 @@ revoke all on public.member_refresh_tokens    from anon, authenticated;
 --  그 경우 사용자는 앱에서 「사번으로 기존 계정 연결」을 쓰면 된다.)
 --
 --   update public.members
---      set email = emp_no || '@samsung.com'
+--      set email = emp_no || '@example.com'
 --    where email is null
 --      and emp_no ~ '^[0-9]{8}$';
 --
 -- 백필 전에 충돌 여부를 먼저 확인할 것:
---   select emp_no || '@samsung.com' as candidate, count(*)
+--   select emp_no || '@example.com' as candidate, count(*)
 --     from public.members
 --    where email is null and emp_no ~ '^[0-9]{8}$'
 --    group by 1 having count(*) > 1;

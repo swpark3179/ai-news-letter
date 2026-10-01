@@ -39,19 +39,15 @@ API 키가 추가로 필요하지 않습니다. 한 실행에서 받는 건수�
 
 ## 1. 리포지터리 만들기 및 푸시
 
+새로 세우는 경우에만 필요합니다.
+
 ```bash
-cd C:/Users/s-w.park/Desktop/ai-news-letter
-
-git add -A
-git commit -m "AI 뉴스레터 초기 구현"
-
-# private 으로 만드는 것을 권장합니다 (사내 콘텐츠·시드에 실명이 들어갑니다)
-gh repo create ai-news-letter --private --source=. --remote=origin
+gh repo create ai-news-letter --source=. --remote=origin   # --public 또는 --private
 git push -u origin main
 ```
 
 > `.env.local` 은 `.gitignore` 에 있어 커밋되지 않습니다.
-> `.env.local.example` 만 올라갑니다.
+> `.env.local.example` 만 올라갑니다. 저장소에는 키도 개인 정보도 들어가지 않습니다.
 
 ---
 
@@ -62,7 +58,7 @@ git push -u origin main
 | 이름 | 필수 | 값 |
 |---|:---:|---|
 | `SUPABASE_URL` | ✅ | `https://<ref>.supabase.co` |
-| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase Project Settings → API 의 `service_role` 키 |
+| `SUPABASE_SERVICE_ROLE_KEY` | ✅ | Supabase Project Settings → API 의 `service_role` 키. 표에 쓰는 것은 수집기뿐이라 **이 키는 여기에만** 둡니다 (Vercel · 앱에는 anon 키) |
 | `OPENAI_API_KEY` | ✅ (정기 실행이 OpenAI) | https://platform.openai.com/api-keys |
 | `GEMINI_API_KEY` | Gemini 워크플로를 쓸 때만 | https://aistudio.google.com/apikey |
 
@@ -151,40 +147,35 @@ Google AI Studio **무료 티어는 입력이 Google 제품 개선에 사용될 
 - arXiv 논문 초록
 - 긱뉴스 공개 요약
 
-사내 문서·발표 자료·구성원 정보는 **전송되지 않습니다.** 그래도 사내 정책상
-외부 학습 데이터 이용을 금지한다면 두 가지 선택지가 있습니다.
+그 밖의 것은 **전송되지 않습니다.** 그래도 외부 학습 데이터 이용을 피하고 싶다면
+두 가지 선택지가 있습니다.
 
 1. `sync-trend-openai.yml` 만 사용 (OpenAI API 는 기본적으로 학습에 미사용) — 현재 구성
 2. Gemini 를 유료 Tier 1 으로 전환 (결제 수단 등록 시 학습 미사용으로 전환)
 
 ---
 
-## 5. 외부 GitHub 을 쓸 수 없다면
+## 5. GitHub Actions 대신 돌리려면
 
-사내 정책상 github.com 사용이 어려운 경우의 대안입니다. 어느 쪽이든
-`npm run sync:geeknews` / `npm run sync:trend` 를 돌리기만 하면 됩니다.
+어느 쪽이든 `npm run sync:geeknews` · `npm run sync:trend` · `npm run sync:showcase` 를
+돌리기만 하면 됩니다. 필요한 환경변수는 2절의 Secrets 와 같습니다.
 
-### A. 사내 서버 cron
+### A. 서버 cron
 
 ```cron
 # /etc/cron.d/ai-newsletter
 0 7 * * * deploy cd /srv/ai-news-letter && /usr/bin/npm run sync:geeknews >> /var/log/ainl-geek.log 2>&1
 10 7 * * * deploy cd /srv/ai-news-letter && /usr/bin/npm run sync:trend    >> /var/log/ainl-trend.log 2>&1
+20 7 * * * deploy cd /srv/ai-news-letter && /usr/bin/npm run sync:showcase >> /var/log/ainl-show.log 2>&1
 ```
 
-사내 프록시 환경이라면 `HTTP_PROXY` / `HTTPS_PROXY` 를 cron 환경에도 넣어 주세요.
-스크립트가 이 값을 읽어 undici 디스패처를 설정합니다 (`src/lib/sync/proxy.ts`).
+프록시 환경이라면 `HTTP_PROXY` / `HTTPS_PROXY` 를 cron 환경에도 넣어 주세요.
+스크립트가 이 값을 읽어 undici 디스패처를 설정합니다 (`src/lib/proxy.ts`).
 
 ### B. Supabase pg_cron + Edge Function
 
 수집 로직을 Edge Function 으로 옮기고 `pg_cron` 으로 호출합니다.
 외부 인프라가 필요 없지만 Deno 환경에 맞춰 코드를 옮겨야 합니다.
-
-### C. 관리자 화면에서 수동 실행
-
-`/admin` 의 **최신 트렌드 정보 업데이트하기** 버튼으로 언제든 돌릴 수 있습니다.
-다만 서버리스 함수의 최대 실행 시간(`maxDuration = 300`) 안에 끝나야 하므로,
-신규 항목이 많으면 중간에 잘릴 수 있습니다. 정기 실행에는 A 나 B 가 낫습니다.
 
 ---
 

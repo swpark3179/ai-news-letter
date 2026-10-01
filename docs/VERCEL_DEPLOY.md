@@ -61,7 +61,7 @@ Route (app)
 `dynamic = "force-dynamic"` 이라 **빌드 시점에 DB 를 읽지 않습니다.** 그래서
 Supabase 키가 없어도 빌드는 통과합니다 (대신 화면에 셋업 안내가 뜹니다).
 
-> **사내 프록시 환경에서 빌드가 멈추면** — `src/app/fonts.ts` 의 `next/font/google` 이
+> **프록시 환경에서 빌드가 멈추면** — `src/app/fonts.ts` 의 `next/font/google` 이
 > 빌드 중 Google Fonts 를 내려받습니다. `HTTPS_PROXY` 를 설정한 셸에서 빌드하세요.
 > Vercel 빌드 환경은 외부 네트워크가 열려 있어 이 문제가 없습니다.
 

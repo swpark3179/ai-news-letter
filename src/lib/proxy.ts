@@ -1,7 +1,7 @@
 import { EnvHttpProxyAgent, setGlobalDispatcher } from "undici";
 
 /**
- * 사내 프록시 뒤에서 fetch 가 동작하도록 한다.
+ * 프록시 뒤에서 fetch 가 동작하도록 한다.
  *
  * curl 이나 npm 은 HTTP_PROXY / HTTPS_PROXY 환경변수를 알아서 쓰지만, Node 의
  * fetch 는 기본적으로 무시한다. 그대로 두면 프록시 환경에서 다음이 전부 죽는다.

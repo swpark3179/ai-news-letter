@@ -1,242 +1,185 @@
-# Supabase 수동 설정 절차
+# Supabase 설정 절차
 
-MCP 연결 없이 대시보드에서 직접 진행하는 단계별 안내입니다.
-처음부터 끝까지 약 **15분** 걸립니다.
+새 Supabase 프로젝트를 이 저장소로 세우는 단계별 안내입니다. 대시보드만으로
+**10분 안팎**이면 끝납니다.
 
-테이블 구조·RLS 설계 배경 같은 참고 내용은 [SUPABASE_SETUP.md](SUPABASE_SETUP.md) 를 보세요.
-이 문서는 "무엇을 순서대로 누르면 되는가"에만 집중합니다.
+표 구조 · 권한 설계 · 운영 쿼리 같은 참고 내용은 [SUPABASE_SETUP.md](SUPABASE_SETUP.md)
+에 있습니다. 이 문서는 「무엇을 순서대로 하면 되는가」만 다룹니다.
 
 | 단계 | 내용 | 소요 |
 |---|---|---|
-| [1](#1단계--프로젝트-확인-및-키-복사) | 프로젝트 확인 및 키 복사 | 2분 |
-| [2](#2단계--스키마-적용) | 스키마 적용 | 3분 |
-| [3](#3단계--storage-버킷) | Storage 버킷 | 1분 |
-| [4](#4단계--적용-확인) | 적용 확인 | 2분 |
-| [5](#5단계--envlocal-채우기) | `.env.local` 채우기 | 1분 |
-| [6](#6단계--사번-교체-선택) | 사번 교체 (선택) | — |
-| [7](#7단계--데이터-채우고-확인) | 데이터 채우고 확인 | 5분 |
+| [1](#1단계--프로젝트와-키) | 프로젝트와 키 | 2분 |
+| [2](#2단계--스키마-적용) | 스키마 적용 | 2분 |
+| [3](#3단계--적용-확인) | 적용 확인 | 2분 |
+| [4](#4단계--키-나눠-넣기) | 키 나눠 넣기 | 2분 |
+| [5](#5단계--데이터-채우고-확인) | 데이터 채우고 확인 | 3분 |
+
+Storage 버킷과 Supabase Auth 는 **쓰지 않습니다.** 웹도 앱도 로그인이 없고 파일을
+올리지 않습니다.
 
 ---
 
-## 1단계 — 프로젝트 확인 및 키 복사
+## 1단계 — 프로젝트와 키
 
-https://supabase.com/dashboard 에서 프로젝트를 선택합니다.
-없으면 **New project** 로 만드세요 (Region 은 `Northeast Asia (Seoul)` 권장).
+https://supabase.com/dashboard 에서 **New project** 를 만듭니다. 운영은
+`Northeast Asia (Tokyo)` 이고, Vercel 함수는 Seoul(`icn1`)에서 돕니다.
 
-**Project Settings → Data API** 에서 두 값을 복사합니다.
+**Project Settings → API** 에서 세 값을 복사합니다.
 
-| 항목 | 예시 | 비고 |
+| 값 | 누가 쓰나 | 어디에 넣나 |
 |---|---|---|
-| Project URL | `https://abcdefgh.supabase.co` | |
-| `service_role` secret | `eyJhbGci...` | **Reveal** 을 눌러야 보입니다 |
+| Project URL (`https://<ref>.supabase.co`) | 웹 · 앱 · 수집기 | 모두 |
+| `anon` 키 (publishable 키도 됩니다) | **웹 · 앱** | Vercel 환경변수 · 앱 빌드 설정 |
+| `service_role` 키 (secret) | **수집기만** | GitHub Actions Secrets · 로컬 `.env.local` |
 
-> `anon` 키는 이 프로젝트에서 쓰지 않습니다.
-> `service_role` 은 RLS 를 우회하는 마스터 키라, 브라우저에 절대 내려보내지 않고
-> 서버(Next.js)와 GitHub Actions Secrets 에서만 씁니다.
+> `anon` 키로 열리는 것은 모바일 뷰 5개의 SELECT 뿐입니다(`0018`). 공개 키라
+> 앱 바이너리에 들어가도 괜찮습니다.
+>
+> `service_role` 은 RLS 를 우회하는 마스터 키입니다. **Vercel 에도, 앱에도 넣지
+> 마세요.** 수집 스크립트만 씁니다.
 
 ---
 
 ## 2단계 — 스키마 적용
 
-12개 마이그레이션을 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 이
-준비되어 있습니다.
-
-터미널에서 클립보드로 복사:
+마이그레이션 21개를 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 을 씁니다.
 
 ```powershell
-Get-Content supabase/ALL_MIGRATIONS.sql -Raw | Set-Clipboard
+Get-Content supabase/ALL_MIGRATIONS.sql -Raw | Set-Clipboard   # Windows
 ```
 
-대시보드 → **SQL Editor** → **New query** → 붙여넣기 → **Run** (`Ctrl+Enter`).
-
-`Success. No rows returned` 이 뜨면 성공입니다. 86개 statement 가 한 번에 실행됩니다.
-
-### 이 파일이 만드는 것
-
-```
-테이블 16개
-  members  app_settings                        구성원 · 발행설정
-  geek_news  trend_items  articles             콘텐츠
-  article_sources  comments                    기사 부속
-  meetings  meeting_attendees  rotations       유닛 운영
-  scraps  sync_runs  attachments               보관함 · 로그 · 업로드
-  member_google_identities                     모바일 앱 로그인 (0010)
-  member_apple_identities  member_refresh_tokens
-
-인덱스 21개 + updated_at 자동갱신 트리거 3개
-RLS 16개 테이블 전부 활성화 (정책은 의도적으로 0건)
-시드 — 유닛원 4명, 구독자 1명, 로테이션 8건, 발행설정 5건
+```bash
+pbcopy < supabase/ALL_MIGRATIONS.sql                           # macOS
 ```
 
-전부 `if not exists` / `on conflict do nothing` 이라 **두 번 실행해도 안전**합니다.
-중간에 실패하면 원인을 고친 뒤 그대로 다시 돌리면 됩니다.
+대시보드 → **SQL Editor** → **New query** → 붙여넣기 → **Run**.
+`Success. No rows returned` 이 뜨면 성공입니다. SQL Editor 는 붙여넣은 내용을 한
+트랜잭션으로 돌리므로, 중간에 실패하면 아무것도 남지 않습니다 — 원인을 고치고
+다시 Run 하면 됩니다.
+
+### 만들어지는 것
+
+```
+public 표 6개    geek_news  showcase_items  trend_items  hada_contents   콘텐츠
+                 app_settings  sync_runs                                 발행 호수 · 수집 기록
+public 뷰 5개    mobile_feed  mobile_showcase  mobile_trend_detail
+                 mobile_hada_content  mobile_issue                       웹 · 앱이 읽는 것
+graveyard        예전 기능(로그인 · 기사 · 모임 · 보관함)의 빈 표 12개
+시드             app_settings.issue_no 한 건
+```
+
+`graveyard` 에 표가 생기는 이유: 0002~0012 가 예전 기능의 표를 만들고, `0020` 이
+그것들을 `graveyard` 스키마로 옮깁니다. 마이그레이션 이력을 고쳐 쓰지 않으려고 그대로
+둔 것이라 비어 있고, 아무도 읽지 않습니다. 운영에서 지우고 나면 다음 마이그레이션에서
+함께 정리합니다.
+
+여러 번 실행해도 안전합니다 — 표는 `if not exists`, 시드는 `on conflict do nothing`,
+뷰는 지우고 다시 만들며 권한은 `0018` 이 매번 같은 상태로 되돌립니다.
 
 ### 나눠서 실행하고 싶다면
 
-개별 파일을 **번호 순서대로** 하나씩 돌리세요.
+`supabase/migrations/` 의 파일을 **번호 순서대로** 하나씩 돌리세요.
 
 ```
-supabase/migrations/0001_extensions.sql   pgcrypto 확장
-supabase/migrations/0002_core.sql         members, app_settings
-supabase/migrations/0003_content.sql      geek_news, trend_items, articles, …
-supabase/migrations/0004_unit.sql         meetings, rotations, scraps
-supabase/migrations/0005_ops.sql          sync_runs, attachments
-supabase/migrations/0006_indexes.sql      인덱스 + updated_at 트리거
-supabase/migrations/0007_rls.sql          RLS 활성화
-supabase/migrations/0008_seed.sql         유닛원·로테이션·발행설정 시드
-supabase/migrations/0009_scraps.sql       보관함 조회 인덱스
-supabase/migrations/0010_google_identities.sql   모바일 Google 로그인 · 리프레시 토큰
-supabase/migrations/0011_apple_identities.sql    모바일 Apple 로그인
+0001_extensions        pgcrypto
+0002~0005              표 (members · articles · meetings 등 예전 표 포함)
+0006_indexes           인덱스 + updated_at 트리거
+0007_rls               모든 표에 RLS (정책 0건)
+0008_seed              app_settings.issue_no
+0009~0012              예전 보관함 · 모바일 로그인 · SSO 열 (0020 이 graveyard 로 옮김)
+0013_mobile_read_access  mobile_feed · mobile_trend_detail · mobile_issue
+0014_showcase          showcase_items
+0015_hada_contents     hada_contents (긱뉴스 · 쇼케이스 본문)
+0016 · 0017            mobile_showcase · mobile_hada_content
+0018_lock_anon_grants  anon 에게 뷰 5개 SELECT 만
+0019_web_read_columns  뷰 끝에 웹용 열 (collected_date · score · origin_url)
+0020_graveyard         안 쓰는 표 · 함수를 graveyard 로
+0021_app_settings_trim app_settings 를 issue_no 만
 ```
 
-0010·0011 은 예전 모바일 앱 로그인용입니다. 지금은 웹도 앱도 로그인을 하지 않아
-쓰는 곳이 없습니다 (정리 계획은 [`supabase/LIVE_ONLY.md`](../supabase/LIVE_ONLY.md) 의 C).
+> psql 로 한 파일씩 돌린다면 `--single-transaction` 을 붙이세요. 파일 끝의 자체
+> 확인이 실패했을 때 그 파일 전체가 되돌아갑니다.
 
-> 스키마를 고칠 때는 `migrations/` 의 개별 파일을 고치고
-> `npm run sql:bundle` 로 `ALL_MIGRATIONS.sql` 을 다시 만드세요.
+> 스키마를 고칠 때는 `migrations/` 에 새 파일을 더하고 `npm run sql:bundle` 로
+> `ALL_MIGRATIONS.sql` 을 다시 만드세요.
 
 ---
 
-## 3단계 — Storage 버킷
+## 3단계 — 적용 확인
 
-발표 현장 사진과 발표 자료(PDF)를 담습니다.
-
-대시보드 → **Storage** → **New bucket**
-
-| 항목 | 값 |
-|---|---|
-| Name | `newsletter` |
-| Public bucket | **끔** |
-| File size limit | `500 MB` |
-
-SQL 로 해도 됩니다:
-
-```sql
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('newsletter', 'newsletter', false, 524288000)
-on conflict (id) do nothing;
-```
-
-> **private 버킷을 고르면 코드를 한 줄 고쳐야 합니다.**
-> `src/lib/data/ops.ts` 의 `storageUrl()` 이 지금 `getPublicUrl()` 을 쓰는데,
-> private 버킷에서는 이 URL 이 열리지 않습니다.
->
-> ```ts
-> const { data } = await supabaseAdmin()
->   .storage.from(supabaseEnv.bucket)
->   .createSignedUrl(path, 60 * 60);   // 1시간
-> return data?.signedUrl ?? null;
-> ```
->
-> 발표 자료가 보안 등급 II 문서라면 private + 서명 URL 이 맞고,
-> 사진만 쓸 거면 public 으로 두고 지금 코드를 그대로 써도 됩니다.
-
----
-
-## 4단계 — 적용 확인
-
-**`supabase/VERIFY.sql`** 을 SQL Editor 에 붙여넣고 블록별로 실행하세요.
-아래가 나오면 정상입니다.
+**`supabase/VERIFY.sql`** 을 SQL Editor 에 붙여넣고 블록별로 실행합니다. 중요한 것만
+추리면:
 
 | # | 확인 | 기대값 |
 |---|---|---|
-| ① | 테이블 | **16개** |
-| ② | RLS | 16개 모두 `rowsecurity = true` |
+| ① | public 표 | 6개 |
+| ② | RLS | 모두 `rowsecurity = true` |
 | ③ | 정책 | **0건** ← 비어 있는 게 정상입니다 |
-| ④ | 인덱스 | 21개 내외 |
-| ⑤ | `trend_items.public_id` | `is_generated = ALWAYS` |
-| ⑥ | `members` | 5명 |
-| ⑦ | `app_settings` | 5건 |
-| ⑧ | `rotations` | 8건 |
-| ⑨ | 버킷 | `newsletter` / `public = false` |
+| ⑪ | 모바일 뷰 | 5개 |
+| ⑫ | anon 에게 열린 것 | **뷰 5개의 SELECT 뿐** ← 가장 중요합니다 |
+| ⑳ | 뷰 끝의 웹용 열 | 3행 |
+| ㉑ | graveyard | 표 12개, anon 접근 `false` |
 
-③이 0건인 게 헷갈릴 수 있는데 **의도한 구성**입니다.
-로그인 주체가 Supabase Auth 가 아니라 사내 SSO 라 `auth.uid()` 기반 정책을 쓸 수
-없고, 모든 접근이 서버의 `service_role` 을 통합니다. 정책이 없으면 `anon` /
-`authenticated` 롤은 전부 거부되므로, `anon` 키가 유출돼도 사내 콘텐츠가 새지
-않습니다.
+③이 0건인 것은 의도한 구성입니다. 표에 직접 닿는 것은 수집기의 `service_role`
+뿐이고, 웹 · 앱은 표가 아니라 뷰를 읽습니다. 뷰는 정책이 아니라 `grant` 로 열려
+있습니다.
 
 ---
 
-## 5단계 — `.env.local` 채우기
+## 4단계 — 키 나눠 넣기
 
-`.env.local` 은 이미 생성돼 있고 `SESSION_SECRET` 도 채워져 있습니다.
-두 줄만 바꾸세요.
-
-```dotenv
-SUPABASE_URL=https://<1단계의 Project URL>
-SUPABASE_SERVICE_ROLE_KEY=<1단계의 service_role 키>
-```
-
-`SUPABASE_STORAGE_BUCKET=newsletter` 는 이미 들어 있습니다.
-
-> **개발 서버를 반드시 재시작**하세요.
-> `next.config.ts` 가 `SUPABASE_URL` 을 읽어 `next/image` 허용 호스트를 정하는데,
-> 이 값은 빌드 시점에 한 번만 평가됩니다.
-
----
-
-## 6단계 — 사번 교체 (선택)
-
-시드의 사번(`21084213` 등)은 임시값입니다. 실제 SSO 를 붙이기 전에 바꾸지 않으면
-같은 사람이 구독자로 새로 생성됩니다.
-
-```sql
-update public.members set emp_no = '<실제 사번>' where name = '박세원';
-update public.members set emp_no = '<실제 사번>' where name = '문명훈';
-update public.members set emp_no = '<실제 사번>' where name = '박미숙';
-update public.members set emp_no = '<실제 사번>' where name = '한솔아';
-```
-
-목업 로그인은 `21084213` 으로 들어옵니다. 이걸 바꾸면
-`src/lib/auth/sso/client.mock.ts` 의 `MOCK_USER.empNo` 도 같이 맞춰야 합니다.
-
-관리자 권한 부여/회수:
-
-```sql
-update public.members set is_admin = true  where emp_no = '<사번>';
-update public.members set is_admin = false where emp_no = '<사번>';
-```
-
----
-
-## 7단계 — 데이터 채우고 확인
+### 로컬 `.env.local`
 
 ```bash
-# ① 파싱만 확인 (DB 미기록)
-npm run sync:geeknews -- --dry-run
-
-# ② 실제 적재 — 3일치 40~50건이 들어갑니다
-npm run sync:geeknews
-
-# ③ 트렌드 수집 대상만 확인 (LLM 호출 없음, API 키 불필요)
-npm run sync:trend -- --dry-run
-
-# ④ GEMINI_API_KEY 를 .env.local 에 넣은 뒤, 5건만 기사화해 품질 확인
-npm run sync:trend -- --limit=5
-
-# ⑤ 화면 확인
-npm run dev
+cp .env.local.example .env.local
 ```
 
-`http://localhost:3000` → 로그인 화면이 2~3초 뒤 자동 통과 →
-1면에 긱뉴스와 트렌드가 채워져 있어야 합니다.
+```dotenv
+SUPABASE_URL=https://<ref>.supabase.co
+SUPABASE_ANON_KEY=<anon 키>                 # 웹(npm run dev)
+SUPABASE_SERVICE_ROLE_KEY=<service_role 키> # 수집 스크립트(npm run sync:*)만
+OPENAI_API_KEY=<키>                         # 트렌드 기사 작성(sync:trend)만
+```
 
-### 확인 쿼리
+웹만 띄워 볼 거면 위의 두 줄(`SUPABASE_URL` · `SUPABASE_ANON_KEY`)이면 됩니다.
+
+### Vercel
+
+`SUPABASE_URL` · `SUPABASE_ANON_KEY` 두 개뿐입니다 ([VERCEL_DEPLOY.md](VERCEL_DEPLOY.md)).
+
+### GitHub Actions
+
+`SUPABASE_URL` · `SUPABASE_SERVICE_ROLE_KEY` · `OPENAI_API_KEY`
+([GITHUB_ACTIONS_SETUP.md](GITHUB_ACTIONS_SETUP.md)).
+
+---
+
+## 5단계 — 데이터 채우고 확인
+
+```bash
+npm run sync:geeknews -- --dry-run   # ① 파싱만 확인 (DB 미기록)
+npm run sync:geeknews                # ② 실제 적재 — 3일치 40~50건 + 본문
+npm run sync:showcase                # ③ 쇼케이스
+npm run sync:trend -- --dry-run      # ④ 트렌드 수집 대상만 (LLM 호출 없음)
+npm run sync:trend -- --limit=5      # ⑤ 5건만 기사화해 품질 확인
+npm run dev                          # ⑥ http://localhost:3000
+```
+
+1면에 다섯 카테고리가 채워지고, 마스트헤드의 알약이 「오늘 수집분」이면 정상입니다.
 
 ```sql
--- 3일 범위로 들어왔는가
-select count(*), min(published_at), max(published_at) from geek_news;
+-- 카테고리별로 언제 무엇이 들어왔는가
+select type, source, collected_date, count(*)
+  from public.mobile_feed
+ group by 1, 2, 3
+ order by 3 desc, 1, 2
+ limit 20;
 
--- 멱등성 — sync:geeknews 를 두 번 돌려도 이 값이 늘지 않아야 함
-select count(*) from geek_news;
-
--- GitHub Trending 이 세 기간을 모두 가져왔는가
-select source, source_variant, count(*) from trend_items group by 1,2 order by 1,2;
-
--- 실행 로그
+-- 수집 실행 기록
 select kind, provider, status, fetched_count, inserted_count, skipped_count, error
-  from sync_runs order by started_at desc limit 5;
+  from public.sync_runs
+ order by started_at desc
+ limit 5;
 ```
 
 ---
@@ -245,39 +188,22 @@ select kind, provider, status, fetched_count, inserted_count, skipped_count, err
 
 | 증상 | 원인 · 조치 |
 |---|---|
-| 화면에 "Supabase 설정이 아직 끝나지 않았습니다" | `.env.local` 반영 안 됨 → 개발 서버 재시작 |
-| `permission denied for table ...` | `anon` 키를 넣었습니다. `service_role` 키인지 확인 (JWT 를 디코드하면 `"role":"service_role"`) |
-| `relation "public.geek_news" does not exist` | 2단계 SQL 이 실패했습니다. SQL Editor 하단 에러를 확인하고 다시 Run |
-| `ConnectTimeoutError` | 사내 프록시입니다. `HTTPS_PROXY` 가 설정돼 있으면 스크립트가 자동 처리합니다 |
-| `HTTP 403 — news.hada.io` | `SYNC_USER_AGENT` 를 건드렸다면 되돌리세요. UA 에 `bot` 이 들어가면 차단됩니다 |
-| 사진이 안 보임 | private 버킷 + `getPublicUrl()` 조합. 3단계의 서명 URL 안내 참고 |
-| `sync_runs` 가 `running` 에서 멈춤 | 프로세스가 중간에 죽은 경우입니다. 같은 종류는 15분 뒤부터 다시 실행됩니다 |
+| 화면에 「Supabase 설정이 아직 끝나지 않았습니다」 | `SUPABASE_URL` · `SUPABASE_ANON_KEY` 가 비었습니다. 넣고 개발 서버를 재시작하세요 |
+| 웹에서 `permission denied for view mobile_…` | `0018` 이 적용되지 않았거나 뷰를 새로 만든 뒤 `grant select … to anon` 이 빠졌습니다. VERIFY ⑫ 를 보세요 |
+| 수집 스크립트에서 `permission denied for table …` | anon 키를 넣었습니다. `SUPABASE_SERVICE_ROLE_KEY` 가 service_role 키인지 확인하세요 (JWT 를 디코드하면 `"role":"service_role"`) |
+| `relation "public.geek_news" does not exist` | 2단계가 실패했습니다. SQL Editor 아래 오류를 확인하고 다시 Run |
+| `ConnectTimeoutError` | 프록시 환경입니다. `HTTPS_PROXY` 가 설정돼 있으면 스크립트가 자동 처리합니다 |
+| `HTTP 403 — news.hada.io` | `SYNC_USER_AGENT` 를 건드렸다면 되돌리세요. UA 에 `bot` 이 들어가면 막힙니다 |
+| `sync_runs` 가 `running` 에서 멈춤 | 프로세스가 중간에 죽었습니다. 같은 종류는 15분 뒤부터 다시 실행됩니다 |
 
 ---
 
 ## 관련 파일
 
 ```
-supabase/ALL_MIGRATIONS.sql   12개 마이그레이션 통합본 — 붙여넣기용
-supabase/VERIFY.sql           적용 확인 쿼리 9종
-supabase/migrations/          개별 마이그레이션 0001~0012
+supabase/ALL_MIGRATIONS.sql   마이그레이션 21개 통합본 — 붙여넣기용 (생성물)
+supabase/VERIFY.sql           적용 확인 쿼리 ①~㉑
+supabase/migrations/          개별 마이그레이션 0001~0021
+supabase/LIVE_ONLY.md         운영 DB 에만 있고 마이그레이션에는 없는 객체
 scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 ```
-
----
-
-## SQL 검증 상태
-
-적용 전에 정적 검증을 돌렸습니다.
-
-- 인덱스·FK·트리거·시드가 참조하는 컬럼이 모두 실제로 존재함
-- 괄호 141/141(주석·문자열 제외), 작은따옴표 짝수, `$$` 2개(짝수) 균형
-- RLS 16/16 테이블 적용, `create policy` 0건 (의도된 구성)
-- 테이블 16개 · 인덱스 21개 · 트리거 3개
-
-0010·0011 은 모바일 저장소에서 그대로 가져온 파일이라 위 정적 검증 범위
-바깥입니다 (그쪽에서 작성·검토된 것입니다).
-
-다만 **실제 Postgres 인스턴스에 실행해 본 것은 아닙니다**
-(작업 PC 에 psql·docker 가 없습니다).
-2단계에서 에러가 나면 메시지를 그대로 알려 주시면 바로 고치겠습니다.
