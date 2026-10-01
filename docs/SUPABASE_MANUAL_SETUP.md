@@ -89,8 +89,8 @@ supabase/migrations/0010_google_identities.sql   모바일 Google 로그인 · �
 supabase/migrations/0011_apple_identities.sql    모바일 Apple 로그인
 ```
 
-0010·0011 은 모바일 앱 로그인용입니다 — 앱을 붙이지 않는다면 미뤄도 웹은
-그대로 동작합니다. 내용은 [`MOBILE_OAUTH2.md`](MOBILE_OAUTH2.md).
+0010·0011 은 예전 모바일 앱 로그인용입니다. 지금은 웹도 앱도 로그인을 하지 않아
+쓰는 곳이 없습니다 (정리 계획은 [`supabase/LIVE_ONLY.md`](../supabase/LIVE_ONLY.md) 의 C).
 
 > 스키마를 고칠 때는 `migrations/` 의 개별 파일을 고치고
 > `npm run sql:bundle` 로 `ALL_MIGRATIONS.sql` 을 다시 만드세요.

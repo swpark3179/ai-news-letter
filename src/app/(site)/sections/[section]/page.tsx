@@ -2,7 +2,6 @@ import Link from "next/link";
 import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import {
-  ROLE_LABEL,
   SECTION_MAP,
   SRC,
   TREND_SOURCE_TO_KIND,
@@ -12,17 +11,8 @@ import {
 import { routes } from "@/lib/routes";
 import { issueNum, shortDot } from "@/lib/format";
 import { repoLabelOf } from "@/lib/trendItem";
-import {
-  getArticles,
-  getGeekNews,
-  getMyDraft,
-  getTrendItems,
-} from "@/lib/data/content";
-import { getSessionUser } from "@/lib/auth/current-user";
-import { getSavedKeys } from "@/lib/data/scraps";
-import ScrapButton from "@/components/scrap/ScrapButton";
-import type { SessionUser } from "@/lib/auth/session";
-import type { SectionKey, TrendSource, WritableSection } from "@/types/db";
+import { getGeekNews, getTrendItems } from "@/lib/data/content";
+import type { SectionKey, TrendSource } from "@/types/db";
 import s from "@/components/section/section.module.css";
 
 export const dynamic = "force-dynamic";
@@ -53,17 +43,6 @@ export default async function SectionPage({ params, searchParams }: Props) {
   if (!isSectionKey(section)) notFound();
   const def = SECTION_MAP[section as SectionKey];
 
-  // 위클리 리뷰 · 심층 분석은 유닛원이 직접 쓰는 카테고리라 등록 진입점이 붙는다.
-  const writable: WritableSection | null =
-    section === "review" || section === "deep" ? section : null;
-  // 자동 수집 두 카테고리는 행마다 보관 버튼이 붙으므로 어느 화면이든 세션을 읽는다.
-  const user = await getSessionUser();
-  const mine = writable !== null && filter === "mine";
-
-  // 이어쓸 임시저장 — "내 글" 목록에는 이미 보이므로 그때는 배너를 숨긴다.
-  const draft =
-    writable && user && !mine ? await getMyDraft(user.id, writable) : null;
-
   return (
     <div className={s.wrap}>
       <div className={s.paper}>
@@ -90,49 +69,12 @@ export default async function SectionPage({ params, searchParams }: Props) {
                 ))}
               </div>
             )}
-
-            {writable && user && (
-              <div className={s.actions}>
-                <Link
-                  href={routes.section(writable, "all")}
-                  className={`${s.filter} ${mine ? "" : s.filterOn}`}
-                >
-                  전체
-                </Link>
-                <Link
-                  href={routes.section(writable, "mine")}
-                  className={`${s.filter} ${mine ? s.filterOn : ""}`}
-                >
-                  내 글
-                </Link>
-                <Link href={routes.sectionWrite(writable)} className={s.writeBtn}>
-                  ＋ 글 쓰기
-                </Link>
-              </div>
-            )}
           </div>
         </div>
 
         <div className={s.list}>
-          {draft && (
-            <div className={s.draftBanner}>
-              작성 중인 글이 있습니다 ·
-              <span className={s.draftBannerTitle}>{draft.title || "제목 없음"}</span>
-              <Link href={routes.sectionWrite(draft.section)} className={s.draftBannerLink}>
-                이어쓰기
-              </Link>
-            </div>
-          )}
-
-          {section === "geek" && <GeekList viewer={user} />}
-          {section === "trend" && <TrendList filter={filter} viewer={user} />}
-          {writable && (
-            <ArticleList
-              section={writable}
-              viewer={user}
-              mine={mine}
-            />
-          )}
+          {section === "geek" && <GeekList />}
+          {section === "trend" && <TrendList filter={filter} />}
         </div>
       </div>
     </div>
@@ -143,11 +85,8 @@ export default async function SectionPage({ params, searchParams }: Props) {
 /* 긱뉴스 — 제목을 누르면 긱뉴스 원문으로 바로 이동 (상세 페이지 없음)   */
 /* ------------------------------------------------------------------ */
 
-async function GeekList({ viewer }: { viewer: SessionUser | null }) {
+async function GeekList() {
   const rows = await getGeekNews(60);
-  const saved = viewer
-    ? await getSavedKeys(viewer.id, "geek", rows.map((g) => g.url))
-    : new Set<string>();
 
   if (rows.length === 0) {
     return (
@@ -192,13 +131,6 @@ async function GeekList({ viewer }: { viewer: SessionUser | null }) {
             <div className={s.rowMeta}>
               {g.points} points · 댓글 {g.comment_count}
             </div>
-            {viewer && (
-              <ScrapButton
-                targetType="geek"
-                targetKey={g.url}
-                initialSaved={saved.has(g.url)}
-              />
-            )}
           </div>
         </div>
       ))}
@@ -210,22 +142,13 @@ async function GeekList({ viewer }: { viewer: SessionUser | null }) {
 /* 트렌드 브리핑                                                        */
 /* ------------------------------------------------------------------ */
 
-async function TrendList({
-  filter,
-  viewer,
-}: {
-  filter: string;
-  viewer: SessionUser | null;
-}) {
+async function TrendList({ filter }: { filter: string }) {
   const source =
     filter !== "all" && ["github", "hn", "arxiv", "geeknews"].includes(filter)
       ? (filter as TrendSource)
       : undefined;
 
   const rows = await getTrendItems({ source, limit: 80 });
-  const saved = viewer
-    ? await getSavedKeys(viewer.id, "trend", rows.map((t) => t.source_url))
-    : new Set<string>();
 
   if (rows.length === 0) {
     return (
@@ -280,94 +203,10 @@ async function TrendList({
               <div className={s.rowMeta}>
                 {t.llm_provider ? `${t.llm_provider} 요약` : "자동 요약"}
               </div>
-              {viewer && (
-                <ScrapButton
-                  targetType="trend"
-                  targetKey={t.source_url}
-                  initialSaved={saved.has(t.source_url)}
-                />
-              )}
             </div>
           </div>
         );
       })}
-    </>
-  );
-}
-
-/* ------------------------------------------------------------------ */
-/* 위클리 리뷰 / 심층 분석                                              */
-/* ------------------------------------------------------------------ */
-
-async function ArticleList({
-  section,
-  viewer,
-  mine,
-}: {
-  section: "review" | "deep";
-  viewer: SessionUser | null;
-  mine: boolean;
-}) {
-  // "내 글" 은 임시저장까지 보여 준다 — 여기서 수정·삭제로 넘어간다.
-  const rows =
-    mine && viewer
-      ? await getArticles({
-          section,
-          authorId: viewer.id,
-          includeDrafts: true,
-          limit: 60,
-        })
-      : await getArticles({ section, limit: 60 });
-
-  if (rows.length === 0) {
-    return (
-      <div className={s.empty}>
-        {mine ? "아직 작성한 글이 없습니다." : "아직 발행된 글이 없습니다."}
-        <div className={s.emptyHint}>
-          {viewer ? "오른쪽 위 ＋ 글 쓰기 로 등록하세요" : "로그인하면 글을 쓸 수 있습니다"}
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <>
-      {rows.map((a) => (
-        <Link key={a.id} href={routes.article(a)} className={s.row}>
-          <div>
-            <div className={s.rowDate}>
-              {a.published_at ? shortDot(a.published_at) : "—"}
-            </div>
-            <div className={s.rowNum}>
-              NO.{a.published_at ? issueNum(a.published_at) : "----"}
-            </div>
-          </div>
-          <div>
-            <div className={s.rowKicker}>
-              {SECTION_MAP[section].ko}
-              {a.status !== "published" && (
-                <> · <span className={s.draftTag}>임시저장</span></>
-              )}
-            </div>
-            <div className={s.rowTitle}>{a.title}</div>
-            {a.deck && <div className={s.rowDeck}>{a.deck}</div>}
-            <div className={s.rowTags}>
-              {a.tags.map((tag) => (
-                <span key={tag} className={s.tag}>
-                  {tag}
-                </span>
-              ))}
-            </div>
-          </div>
-          <div className={s.rowRight}>
-            <div className={s.rowAuthor}>{a.author?.name ?? "미지정"}</div>
-            <div className={s.rowMeta}>
-              {a.author ? ROLE_LABEL[a.author.role] : ""}
-              {section === "deep" ? " · 발표 자료 포함" : " · 유닛 기고"}
-            </div>
-          </div>
-        </Link>
-      ))}
     </>
   );
 }

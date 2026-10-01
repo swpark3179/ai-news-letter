@@ -1,25 +1,22 @@
 # AI 뉴스레터
 
-Samsung SDS AI Unit 사내 일간 뉴스레터. Next.js 16 (App Router) + Supabase.
+매일 아침 모아 온 AI 소식을 신문 지면처럼 읽는 일간 뉴스레터.
+Next.js 16 (App Router) + Supabase. 로그인 · 관리자 기능이 없는 읽기 전용 사이트입니다.
 
-claude.ai/design 프로젝트 `AI 뉴스레터.dc.html` 를 웹서비스와 관리자 페이지로
-구현한 것입니다.
+claude.ai/design 프로젝트 `AI 뉴스레터.dc.html` 의 지면 디자인을 구현한 것입니다.
 
 모바일 앱은 별도 저장소([`ai-news-letter-mobile`](https://github.com/swpark3179/ai-news-letter-mobile),
-Flutter)에 있고, **로그인만 이 서버의 API 를 씁니다** — 사내 SSO 는 PC 트레이
-모듈에 붙는 방식이라 모바일에서 쓸 수 없어 Google · Apple OAuth2 로 들어옵니다
-([docs/MOBILE_OAUTH2.md](docs/MOBILE_OAUTH2.md)).
+Flutter)에 있고, **이 서버의 API 를 쓰지 않습니다** — Supabase 의 모바일 뷰를
+anon 키로 직접 읽습니다 (`supabase/migrations/0013` · `0016` · `0017`).
 
 ---
 
-## 네 개의 카테고리
+## 카테고리
 
 | 카테고리 | 출처 | 채우는 방법 |
 |---|---|---|
 | 긱뉴스 데일리 | news.hada.io | 자동 수집 — **LLM 미사용**, 제목·요약을 원문 그대로 |
 | 트렌드 브리핑 | GitHub Trending · Hacker News · arXiv | 자동 수집 + LLM 이 한국어 기사 작성 |
-| 위클리 리뷰 | 유닛원 4명이 매주 1건 | 관리자 화면에서 직접 작성 |
-| 심층 분석 | 월 1회 정기 발표 | 관리자 화면 (사진 · 발표 자료 첨부) |
 
 이와 별도로 **쇼케이스**(news.hada.io/show — 직접 만든 것 소개)를 매일 수집해
 `showcase_items` 에 쌓고 있습니다. 웹 화면은 아직 없고, 앱은 `mobile_showcase`
@@ -44,37 +41,15 @@ npm run sync:trend -- --limit=5      # 5건만 기사화해 확인
 npm run dev                          # http://localhost:3000
 ```
 
-로그인 기본값은 목업입니다(`NEXT_PUBLIC_SSO_MODE=mock`). 실 모드(Knox 트레이
-`getknoxsso` → EPID 추출 → 등록사용자 대조) 경로도 이어져 있고, `SecuBase`
-복호화 규격 한 곳만 미확정입니다 — [docs/SSO_KNOX_PROTOCOL.md](docs/SSO_KNOX_PROTOCOL.md).
-
-개발 서버에서는 `/` 로 바로 들어가면 로그인 화면을 거치지 않고 목업 사용자로
-세션이 만들어집니다. 로그인 화면 자체를 보려면 `/login?force=1`, 실패 화면은
-`/login?fail=SSO_TIMEOUT_30S` (`?fail=` 로 실패 5종을 모두 볼 수 있습니다).
-
-목업 전용 우회 경로(무로그인 자동 세션 · 사번+비밀번호 폴백 · 게스트 열람)는
-**운영 빌드에서 모드와 무관하게 닫힙니다.** 최종 방침은 「사내 SSO 를 통과하지
-못하면 일반 사용을 제공하지 않는다」입니다.
-
 ---
 
 ## 화면
 
 | 경로 | 내용 |
 |---|---|
-| `/login` | SSO 4단계 진행 · 실패 5종 (사번 로그인·게스트는 목업 모드에서만) |
-| `/login/diag` | 로그인 진단 — 환경변수·트레이 핸드셰이크·디코딩 드라이런 ([docs/SSO_DEBUG.md](docs/SSO_DEBUG.md)) |
-| `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바, 심층 분석, 위클리 리뷰 |
-| `/sections/[geek\|trend\|review\|deep]` | 카테고리 목록 (트렌드는 출처 필터) |
-| `/articles/[id]` | 유닛원 기사 상세 (심층 분석은 토론 코멘트 포함) |
+| `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바 |
+| `/sections/[geek\|trend]` | 카테고리 목록 (트렌드는 출처 필터) |
 | `/articles/trend/[publicId]` | 트렌드 브리핑 상세 |
-| `/meetings` | 모임 아카이브 · 발표 순번 |
-| `/me` | 내 보관함 — 본인이 담아 둔 긱뉴스·트렌드 브리핑만 보인다 |
-| `/admin` | 대시보드 + 수집 파이프라인 콘솔 |
-| `/admin/compose` | 블록 에디터 + 실시간 지면 미리보기 |
-| `/admin/scraps` | 보관 통계 — 많이 보관된 게시물 순위 |
-| `/admin/uploads` | 분할 암호화 업로드 이력 |
-| `/admin/members` | 유닛 멤버 · 로테이션 |
 
 ---
 
@@ -83,21 +58,14 @@ npm run dev                          # http://localhost:3000
 ```
 src/
   app/
-    (site)/            열람 화면 — 헤더 + 게스트 배너(목업 전용) 레이아웃
-    admin/             관리자 (레이아웃에서 is_admin 재확인)
-    api/               auth · me · comments · articles · scraps · uploads · admin/pipeline
+    (site)/            열람 화면 — 헤더 레이아웃
     tokens.css         디자인 토큰 (claude.ai/design 원본을 그대로 이식)
   components/          화면별 컴포넌트 + 같은 폴더의 .module.css
   lib/
-    auth/sso/          사내 SSO — 트레이 WebSocket · 응답 파싱 · 서버 디코딩
-                       (★ SecuBase 복호화만 미확정 → decode-knox.ts)
-    auth/*-identity.ts 모바일 OAuth2 (social · google · apple)
-    auth/mobile-session.ts  앱 액세스/리프레시 토큰
-    data/              읽기 쿼리 (content · ops · settings · scraps)
+    data/              읽기 쿼리 (content · ops · settings)
     llm/               Gemini · OpenAI 공통 인터페이스
     sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
     supabase/          service_role 클라이언트
-  proxy.ts             경로별 접근 제어 (쿠키 · Bearer)
 scripts/sync/          CLI 진입점 (tsx)
 supabase/migrations/   스키마 SQL 18개
 .github/workflows/     동기화 워크플로 4개 + 진단 1개
@@ -236,20 +204,6 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 
 ---
 
-## 보관함
-
-로그인한 사용자가 긱뉴스·트렌드 브리핑 게시물을 나중에 다시 읽으려고 담아 두는
-기능입니다 (`scraps` 테이블).
-
-- **담기** — 1면·카테고리 목록·트렌드 브리핑 상세의 `보관` 버튼. 목표 상태를 그대로
-  보내는 멱등 API(`POST /api/scraps`)라 두 번 눌러도 어긋나지 않습니다.
-- **내 보관함** — 헤더의 `보관함` 버튼 → `/me`. 조회가 항상 본인 `member_id` 로만
-  걸려서 다른 사람이 무엇을 담았는지는 나오지 않습니다.
-- **보관 통계** — `/admin/scraps` 에서 관리자만 봅니다. 어떤 게시물이 많이 담겼는지
-  (건수·최근 보관 시각)만 집계하고 누가 담았는지는 표시하지 않습니다.
-
----
-
 ## 문서
 
 - **[docs/SUPABASE_MANUAL_SETUP.md](docs/SUPABASE_MANUAL_SETUP.md) — 처음 셋업하는 경우 여기부터** (대시보드 단계별 절차, 약 15분)
@@ -257,10 +211,7 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 - [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) — Vercel 배포 절차 · 플랫폼 한도 · 공개 전 점검
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
 - [docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) — 쇼케이스 데이터 조회 (스키마 · **모바일에서 읽는 법**)
-- [docs/SSO_INTEGRATION.md](docs/SSO_INTEGRATION.md) — 사내 SSO 실구현 인계
-- [docs/SSO_KNOX_PROTOCOL.md](docs/SSO_KNOX_PROTOCOL.md) — Knox 트레이 프로토콜 · 미확정 규격 질문 목록
-- **[docs/SSO_DEBUG.md](docs/SSO_DEBUG.md) — 로그인이 안 될 때** (`/login/diag` 4단계 · 「로직 문제인가 변수 로드 문제인가」)
-- [docs/MOBILE_OAUTH2.md](docs/MOBILE_OAUTH2.md) — 모바일 앱 OAuth2 로그인 (Google · Apple)
+- [supabase/LIVE_ONLY.md](supabase/LIVE_ONLY.md) — 운영 DB 에만 있고 마이그레이션에는 없는 객체
 
 ---
 

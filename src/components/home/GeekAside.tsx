@@ -1,36 +1,16 @@
 import Link from "next/link";
-import ScrapButton from "@/components/scrap/ScrapButton";
 import { routes } from "@/lib/routes";
 import { shortDot } from "@/lib/format";
 import type { GeekNewsRow } from "@/types/db";
-import type { RotationWithMember } from "@/lib/data/content";
 import s from "./home.module.css";
 
 interface Props {
   geek: GeekNewsRow[];
-  duty: RotationWithMember[];
   showEn: boolean;
-  /** 로그인 사용자에게만 보관 버튼을 붙인다 */
-  canSave?: boolean;
-  /** 이미 보관한 geek_news.url 집합 */
-  saved?: Set<string>;
 }
 
-const DUTY_STATUS: Record<string, { label: string; fg: string; bg: string }> = {
-  done: { label: "작성 완료", fg: "var(--green-700)", bg: "var(--green-50)" },
-  reviewing: { label: "검토 중", fg: "var(--yellow-800)", bg: "var(--yellow-50)" },
-  preparing: { label: "준비 중", fg: "var(--purple-700)", bg: "var(--purple-50)" },
-  planned: { label: "예정", fg: "var(--gray-600)", bg: "var(--gray-100)" },
-};
-
-/** 우측 사이드바 — 긱뉴스 데일리 + 이번 주 당번 (디자인 263~305행) */
-export default function GeekAside({
-  geek,
-  duty,
-  showEn,
-  canSave = false,
-  saved,
-}: Props) {
+/** 우측 사이드바 — 긱뉴스 데일리 (디자인 263~305행) */
+export default function GeekAside({ geek, showEn }: Props) {
   const updatedAt = geek[0]?.collected_at ?? geek[0]?.published_at;
 
   return (
@@ -79,15 +59,6 @@ export default function GeekAside({
                 )}
                 <span className={s.geekPts}>{g.points}</span>
               </div>
-              {canSave && (
-                <div className={s.geekSave}>
-                  <ScrapButton
-                    targetType="geek"
-                    targetKey={g.url}
-                    initialSaved={saved?.has(g.url) ?? false}
-                  />
-                </div>
-              )}
             </div>
           </div>
         </div>
@@ -96,35 +67,6 @@ export default function GeekAside({
       <Link href={routes.section("geek")} className={s.asideMore}>
         긱뉴스 전체 보기 →
       </Link>
-
-      {duty.length > 0 && (
-        <div className={s.dutyCard}>
-          <div className={s.dutyTitle}>이번 주 당번</div>
-          <div className={s.dutyList}>
-            {duty.map((d) => {
-              const st = DUTY_STATUS[d.status] ?? DUTY_STATUS.planned;
-              const name = d.member?.name ?? "미지정";
-              return (
-                <div key={d.id}>
-                  <div className={s.dutyRow}>
-                    <div className={s.dutyAvatar}>
-                      {d.member?.initial ?? name.slice(-2)}
-                    </div>
-                    <span className={s.dutyName}>{name}</span>
-                    <span
-                      className={s.dutyStatus}
-                      style={{ color: st.fg, background: st.bg }}
-                    >
-                      {st.label}
-                    </span>
-                  </div>
-                  {d.topic && <div className={s.dutyTopic}>{d.topic}</div>}
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
     </aside>
   );
 }

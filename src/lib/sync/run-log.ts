@@ -5,14 +5,14 @@ import type { LlmProviderName, SyncLogEntry, SyncRunKind } from "@/types/db";
 /**
  * sync_runs 행 하나의 수명을 관리한다.
  *
- * 관리자 화면의 pipeline.log 콘솔이 이 행을 폴링하므로, 로그는 쌓는 즉시
- * DB 에 반영한다 (약간의 쓰기 비용을 감수하고 실시간성을 택함).
+ * 로그는 쌓는 즉시 DB 에 반영한다 — 실행이 중간에 죽어도 거기까지의 기록이
+ * sync_runs 에 남는다 (약간의 쓰기 비용을 감수한다).
  */
 
 export interface SyncRunOptions {
   kind: SyncRunKind;
   provider?: LlmProviderName | null;
-  trigger?: "schedule" | "manual" | "admin_ui";
+  trigger?: "schedule" | "manual";
   dryRun?: boolean;
   /** true 면 콘솔에도 같이 찍는다 (CLI 실행용) */
   echo?: boolean;
@@ -60,13 +60,6 @@ export class SyncRun {
       run.id = data.id;
     }
 
-    return run;
-  }
-
-  /** 기존 실행 행에 이어 붙인다 (API 가 미리 행을 만들고 넘겨줄 때). */
-  static attach(db: SupabaseClient, id: string, opts: SyncRunOptions): SyncRun {
-    const run = new SyncRun(db, opts);
-    run.id = id;
     return run;
   }
 

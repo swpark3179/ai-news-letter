@@ -46,9 +46,8 @@ export interface TrendSyncOptions {
   hnMinScore?: number;
   dryRun?: boolean;
   provider?: "gemini" | "openai";
-  trigger?: "schedule" | "manual" | "admin_ui";
+  trigger?: "schedule" | "manual";
   echo?: boolean;
-  runId?: string;
   /** 특정 출처만 돌리고 싶을 때 */
   only?: TrendSource[];
 }
@@ -93,19 +92,13 @@ export async function syncTrend(
     llm = getLlm(opts.provider);
   }
 
-  const run = opts.runId
-    ? SyncRun.attach(db, opts.runId, {
-        kind: "trend",
-        provider: llm?.name ?? null,
-        echo: opts.echo,
-      })
-    : await SyncRun.start(db, {
-        kind: "trend",
-        provider: llm?.name ?? null,
-        trigger: opts.trigger ?? "manual",
-        dryRun: opts.dryRun,
-        echo: opts.echo,
-      });
+  const run = await SyncRun.start(db, {
+    kind: "trend",
+    provider: llm?.name ?? null,
+    trigger: opts.trigger ?? "manual",
+    dryRun: opts.dryRun,
+    echo: opts.echo,
+  });
 
   try {
     const sourceList = [...sources].join(", ");

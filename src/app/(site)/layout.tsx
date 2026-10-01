@@ -1,9 +1,8 @@
-import { getViewer } from "@/lib/auth/current-user";
 import { missingSupabaseEnv } from "@/lib/env";
 import Header from "@/components/site/Header";
 import SetupNotice from "@/components/ui/SetupNotice";
 
-export default async function SiteLayout({
+export default function SiteLayout({
   children,
 }: Readonly<{ children: React.ReactNode }>) {
   const missing = missingSupabaseEnv();
@@ -27,6 +26,5 @@ export default async function SiteLayout({
     return shell(<SetupNotice missing={missing} />, null);
   }
 
-  const { user, guest } = await getViewer();
-  return shell(children, <Header user={user} guest={guest} />);
+  return shell(children, <Header />);
 }

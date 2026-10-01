@@ -36,7 +36,7 @@ export default function ErrorNotice({ error, reset }: Props) {
             <ol className={s.steps}>
               <li>
                 <code>docs/SUPABASE_SETUP.md</code> 를 따라{" "}
-                <code>supabase/migrations/</code> 의 SQL 8개를 순서대로 적용
+                <code>supabase/migrations/</code> 의 SQL 을 번호 순서대로 적용
               </li>
               <li>
                 <code>.env.local</code> 에 <code>SUPABASE_URL</code> 과{" "}
@@ -65,8 +65,8 @@ export default function ErrorNotice({ error, reset }: Props) {
           <button type="button" className={s.retry} onClick={reset}>
             다시 시도
           </button>
-          <Link href="/login" className={s.link}>
-            로그인 화면으로
+          <Link href="/" className={s.link}>
+            1면으로
           </Link>
         </div>
       </div>

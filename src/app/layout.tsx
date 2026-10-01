@@ -8,7 +8,7 @@ export const metadata: Metadata = {
     template: "%s · AI 뉴스레터",
   },
   description:
-    "매일 아침 7시, 흩어진 AI 소식을 한 장으로 · 유닛의 리뷰와 심층 분석을 함께",
+    "매일 아침 7시, 흩어진 AI 소식을 한 장으로",
   robots: { index: false, follow: false },
 };
 

@@ -1,82 +1,40 @@
-import DeepDive from "@/components/home/DeepDive";
 import GeekAside from "@/components/home/GeekAside";
 import LeadStory from "@/components/home/LeadStory";
 import Masthead from "@/components/home/Masthead";
 import TrendGroups from "@/components/home/TrendGroups";
-import WeeklyReviews from "@/components/home/WeeklyReviews";
 import s from "@/components/home/home.module.css";
 import {
-  countComments,
   countGeekNewsToday,
   countTrendBySource,
-  getArticles,
   getGeekNews,
-  getLatestDeepArticle,
   getLeadTrendItem,
-  getRotations,
   getTrendItems,
 } from "@/lib/data/content";
-import { getLastSyncRun, storageUrl } from "@/lib/data/ops";
+import { getLastSyncRun } from "@/lib/data/ops";
 import { getPublishSettings } from "@/lib/data/settings";
-import { getSavedKeys } from "@/lib/data/scraps";
-import { getSessionUser } from "@/lib/auth/current-user";
 import { formatIssue, shortDot } from "@/lib/format";
 
 export const dynamic = "force-dynamic";
 
-const REVIEW_CARDS = 4;
-
 export default async function HomePage() {
   const today = new Date();
 
-  const [
-    settings,
-    lead,
-    geek,
-    deep,
-    allReviews,
-    duty,
-    geekToday,
-    lastGeekSync,
-    lastTrendSync,
-    user,
-  ] = await Promise.all([
-    getPublishSettings(),
-    getLeadTrendItem(),
-    getGeekNews(8),
-    getLatestDeepArticle(),
-    getArticles({ section: "review", limit: 12 }),
-    getRotations("weekly", 6),
-    countGeekNewsToday(),
-    getLastSyncRun("geeknews"),
-    getLastSyncRun("trend"),
-    getSessionUser(),
-  ]);
+  const [settings, lead, geek, geekToday, lastGeekSync, lastTrendSync] =
+    await Promise.all([
+      getPublishSettings(),
+      getLeadTrendItem(),
+      getGeekNews(8),
+      countGeekNewsToday(),
+      getLastSyncRun("geeknews"),
+      getLastSyncRun("trend"),
+    ]);
 
   // 머리기사와 같은 날 수집분만 3열에 노출한다.
   const trendDate = lead?.collected_date;
-  const [trendItems, trendTotals, deepComments] = await Promise.all([
+  const [trendItems, trendTotals] = await Promise.all([
     getTrendItems({ date: trendDate, excludeUrl: lead?.source_url }),
     countTrendBySource(trendDate),
-    deep ? countComments(deep.id) : Promise.resolve(0),
   ]);
-
-  // 1면에서도 바로 보관할 수 있게, 지금 그리는 항목의 보관 여부를 함께 읽는다.
-  const [savedTrend, savedGeek] = user
-    ? await Promise.all([
-        getSavedKeys(
-          user.id,
-          "trend",
-          [lead?.source_url, ...trendItems.map((t) => t.source_url)].filter(
-            (u): u is string => !!u,
-          ),
-        ),
-        getSavedKeys(user.id, "geek", geek.map((g) => g.url)),
-      ])
-    : [new Set<string>(), new Set<string>()];
-
-  const reviews = allReviews.slice(0, REVIEW_CARDS);
-  const restReviews = allReviews.length - reviews.length;
 
   const trendToday = Object.values(trendTotals).reduce((a, b) => a + b, 0);
   const fetchedTotal = (lastTrendSync?.fetched_count ?? 0) + (lastGeekSync?.fetched_count ?? 0);
@@ -84,8 +42,6 @@ export default async function HomePage() {
   const counts: Record<string, string> = {
     geek: geekToday > 0 ? `오늘 ${geekToday}건` : "수집 대기",
     trend: trendToday > 0 ? `오늘 ${trendToday}건` : "수집 대기",
-    review: allReviews.length > 0 ? `최근 ${allReviews.length}건` : "작성 대기",
-    deep: deep ? "최신 1건" : "작성 대기",
   };
 
   const syncOk =
@@ -96,7 +52,7 @@ export default async function HomePage() {
     label: syncOk && lastSyncAt
       ? `자동 수집 정상 · ${shortDot(lastSyncAt)}`
       : lastGeekSync?.status === "failed"
-        ? "자동 수집 실패 · 관리자 확인 필요"
+        ? "자동 수집 실패"
         : "자동 수집 대기 중",
   };
 
@@ -112,49 +68,24 @@ export default async function HomePage() {
 
         <div className={s.mainGrid}>
           <div className={s.leftCol}>
-            <LeadStory lead={lead} canSave={!!user} saved={savedTrend} />
+            <LeadStory lead={lead} />
             <TrendGroups
               items={trendItems}
               totals={trendTotals}
               fetchedTotal={fetchedTotal || trendToday + geekToday}
               collectedDate={trendDate ?? trendItems[0]?.collected_date}
-              canSave={!!user}
-              saved={savedTrend}
             />
           </div>
 
           <div className={s.divider} />
 
-          <GeekAside
-            geek={geek}
-            duty={duty}
-            showEn={settings.showEnSubtitles}
-            canSave={!!user}
-            saved={savedGeek}
-          />
+          <GeekAside geek={geek} showEn={settings.showEnSubtitles} />
         </div>
-
-        <div className={s.blockRuleThick} />
-
-        <DeepDive
-          deep={deep}
-          commentCount={deepComments}
-          photoUrl={storageUrl(deep?.photo_path)}
-          showEn={settings.showEnSubtitles}
-        />
-
-        <div className={s.blockRuleThin} />
-
-        <WeeklyReviews
-          reviews={reviews}
-          restCount={restReviews}
-          showEn={settings.showEnSubtitles}
-        />
 
         <div className={s.paperFooter}>
           <div className={s.footerBrand}>AI 뉴스레터</div>
           <div className={s.footerMeta}>
-            {formatIssue(settings.issueNo)} · {settings.publisher} · 발행인 박세원
+            {formatIssue(settings.issueNo)} · 발행인 박세원
           </div>
           <div className={s.footerRights}>
             긱뉴스·GitHub·Hacker News·arXiv 원문의 저작권은 각 출처에 있습니다
