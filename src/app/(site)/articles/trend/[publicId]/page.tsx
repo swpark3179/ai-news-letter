@@ -7,7 +7,7 @@ import s from "@/components/article/article.module.css";
 import { SECTION_MAP, SRC, TREND_SOURCE_TO_KIND, sourceStyleOf } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import { dotDate } from "@/lib/format";
-import { getTrendItemByPublicId, getTrendItems } from "@/lib/data/content";
+import { getFeed, getTrendDetail } from "@/lib/data/feed";
 
 export const dynamic = "force-dynamic";
 
@@ -17,7 +17,7 @@ interface Props {
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { publicId } = await params;
-  const t = await getTrendItemByPublicId(publicId).catch(() => null);
+  const t = await getTrendDetail(publicId).catch(() => null);
   return { title: t?.title ?? "트렌드 브리핑" };
 }
 
@@ -29,23 +29,20 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
  */
 export default async function TrendArticlePage({ params }: Props) {
   const { publicId } = await params;
-  const item = await getTrendItemByPublicId(publicId);
-
-  if (!item || item.status === "hidden") notFound();
+  // 공개되지 않은 항목(status 가 published 가 아닌 것)은 뷰에 아예 없다.
+  const item = await getTrendDetail(publicId);
+  if (!item) notFound();
 
   const style = sourceStyleOf(item.source);
   const kindLabel = SRC[TREND_SOURCE_TO_KIND[item.source]].label;
 
-  const siblings = await getTrendItems({ limit: 8 });
-  const related: RelatedItem[] = siblings
-    .filter((t) => t.source_url !== item.source_url)
-    .slice(0, 3)
-    .map((t) => ({
-      href: routes.trend(t),
-      kicker: SECTION_MAP.trend.ko,
-      title: t.title,
-      byline: `${SRC[TREND_SOURCE_TO_KIND[t.source]].tag} · ${dotDate(t.collected_date)}`,
-    }));
+  const siblings = await getFeed({ type: "trend", limit: 4, excludeKey: item.key });
+  const related: RelatedItem[] = siblings.slice(0, 3).map((t) => ({
+    href: routes.trend(t),
+    kicker: SECTION_MAP.trend.ko,
+    title: t.title,
+    byline: `${SRC[TREND_SOURCE_TO_KIND[t.source ?? "github"]].tag} · ${dotDate(t.collected_date)}`,
+  }));
 
   return (
     <div className={s.wrap}>
@@ -73,7 +70,7 @@ export default async function TrendArticlePage({ params }: Props) {
             </span>
             <span className={s.srcNote}>
               {dotDate(item.collected_date)} 자동 수집 · 원문 1건을 요약한 게시물입니다
-              {item.llm_provider ? ` · ${item.llm_provider}/${item.llm_model}` : ""}
+              {item.llm_model ? ` · ${item.llm_model}` : ""}
             </span>
           </div>
         </div>
@@ -89,7 +86,7 @@ export default async function TrendArticlePage({ params }: Props) {
                 <div className={s.cardTitle}>원문 소스</div>
                 <div className={s.sourceList}>
                   <a
-                    href={item.source_url}
+                    href={item.key}
                     target="_blank"
                     rel="noreferrer noopener"
                     className={s.sourceRow}
@@ -101,14 +98,14 @@ export default async function TrendArticlePage({ params }: Props) {
                       {style.tag}
                     </span>
                     <span className={s.sourceLabel}>
-                      {item.raw_title ?? item.source_url}
+                      {item.raw_title || item.key}
                     </span>
                     <span className={s.sourceArrow}>↗</span>
                   </a>
 
-                  {typeof item.metrics?.hn_external_url === "string" && (
+                  {item.origin_url && (
                     <a
-                      href={item.metrics.hn_external_url}
+                      href={item.origin_url}
                       target="_blank"
                       rel="noreferrer noopener"
                       className={s.sourceRow}

@@ -7,7 +7,8 @@ claude.ai/design 프로젝트 `AI 뉴스레터.dc.html` 의 지면 디자인을 
 
 모바일 앱은 별도 저장소([`ai-news-letter-mobile`](https://github.com/swpark3179/ai-news-letter-mobile),
 Flutter)에 있고, **이 서버의 API 를 쓰지 않습니다** — Supabase 의 모바일 뷰를
-anon 키로 직접 읽습니다 (`supabase/migrations/0013` · `0016` · `0017`).
+anon 키로 직접 읽습니다 (`supabase/migrations/0013` · `0016` · `0017` · `0019`).
+웹도 같은 키로 같은 뷰를 읽습니다.
 
 ---
 
@@ -62,10 +63,10 @@ src/
     tokens.css         디자인 토큰 (claude.ai/design 원본을 그대로 이식)
   components/          화면별 컴포넌트 + 같은 폴더의 .module.css
   lib/
-    data/              읽기 쿼리 (content · ops · settings)
+    data/feed.ts       읽기 쿼리 — 모바일 뷰를 anon 키로 읽는다
     llm/               Gemini · OpenAI 공통 인터페이스
     sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
-    supabase/          service_role 클라이언트
+    supabase/          read.ts(웹 · anon 키) · admin-client.ts(수집 스크립트 · service_role)
 scripts/sync/          CLI 진입점 (tsx)
 supabase/migrations/   스키마 SQL 18개
 .github/workflows/     동기화 워크플로 4개 + 진단 1개
@@ -226,9 +227,11 @@ undici 디스패처를 설정합니다 (`src/lib/sync/proxy.ts`). Node 의 내�
 일반 브라우저 UA 를 쓰되 요청 간격을 넉넉히 두고, 저장하는 모든 항목에 원문 링크와
 출처를 함께 남깁니다.
 
-**RLS** — 모든 테이블에 RLS 를 켜고 정책은 두지 않았습니다. 브라우저에 Supabase
-키를 내려보내지 않고 서버가 `service_role` 로만 접근합니다. 자세한 배경은
-Supabase 문서를 참고하세요.
+**누가 무엇을 읽는가** — 모든 테이블에 RLS 를 켜고 정책은 두지 않았습니다. 표에
+직접 닿는 것은 수집 스크립트의 `service_role` 키뿐입니다. 웹과 앱은 같은 anon 키로
+모바일 뷰 5개(`mobile_feed` · `mobile_showcase` · `mobile_trend_detail` ·
+`mobile_hada_content` · `mobile_issue`)만 읽고, anon 에게 열린 것은 그 SELECT 뿐입니다
+(`0018`). 숨긴 글을 빼는 규칙과 목록의 지표 문구는 뷰 정의 한 곳에 있습니다.
 
 ---
 
