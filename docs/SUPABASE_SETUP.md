@@ -1,326 +1,175 @@
-# Supabase 설정 가이드
+# Supabase 참고
 
-AI 뉴스레터가 쓰는 테이블 · 인덱스 · RLS · Storage 의 **참고 문서**입니다.
-테이블 구조, PK 를 그렇게 고른 이유, RLS 설계 배경, 운영 쿼리를 담았습니다.
+AI 뉴스레터가 쓰는 표 · 뷰 · 권한의 **참고 문서**입니다. 표 구조, PK 를 그렇게 고른
+이유, 누가 무엇을 읽는지, 운영 쿼리를 담았습니다.
 
-> **처음 셋업하는 중이라면 [SUPABASE_MANUAL_SETUP.md](SUPABASE_MANUAL_SETUP.md)
-> 를 먼저 보세요.** 대시보드에서 무엇을 순서대로 누르면 되는지만 15분짜리
-> 단계별 절차로 정리해 두었습니다.
+> **처음 셋업하는 중이라면 [SUPABASE_MANUAL_SETUP.md](SUPABASE_MANUAL_SETUP.md) 를
+> 먼저 보세요.** 대시보드에서 순서대로 하면 되는 절차만 정리해 두었습니다.
 
 ---
 
-## 0. 준비물
+## 0. 한눈에
 
-| 항목 | 어디서 확인 | 쓰이는 곳 |
+```
+ GitHub Actions 수집기 ── service_role ──▶  표 6개  (RLS 켬 · 정책 0건)
+ (npm run sync:*)                            geek_news · showcase_items · hada_contents
+                                             trend_items · app_settings · sync_runs
+                                                  │
+                                                  ▼  (뷰가 「무엇이 보이는가」를 정한다)
+ 웹 (Vercel)      ┐                          뷰 5개
+                  ├─── anon 키 ──── SELECT ▶ mobile_feed · mobile_showcase · mobile_trend_detail
+ 모바일 앱        ┘                          mobile_hada_content · mobile_issue
+```
+
+- 표에 닿는 것은 수집기의 `service_role` 하나입니다.
+- 웹과 앱은 **같은 anon 키로 같은 뷰**를 읽습니다. anon 에게 열린 것은 그 다섯 뷰의
+  SELECT 뿐입니다(`0018`).
+- Supabase Auth · Storage 는 쓰지 않습니다. 로그인도 파일 업로드도 없습니다.
+
+---
+
+## 1. 표
+
+| 표 | PK | 설명 |
 |---|---|---|
-| Project URL | Supabase 대시보드 → Project Settings → Data API | `SUPABASE_URL` |
-| `service_role` key | 같은 화면의 Project API keys | `SUPABASE_SERVICE_ROLE_KEY` |
-| DB 비밀번호 | Project Settings → Database | CLI 로 적용할 때만 |
-
-> `service_role` 키는 RLS 를 우회하는 마스터 키입니다. 브라우저에 절대 내려보내지
-> 않고, 서버(Next.js)와 GitHub Actions Secrets 에서만 씁니다.
-> `anon` 키는 이 프로젝트에서 아예 사용하지 않습니다.
-
----
-
-## 1. 마이그레이션 적용
-
-세 가지 방법 중 편한 것을 고르면 됩니다. 결과는 같습니다.
-
-### 방법 A — 대시보드 SQL Editor (가장 간단, 권장)
-
-**`supabase/ALL_MIGRATIONS.sql`** 한 파일에 12개 마이그레이션이 순서대로 합쳐져
-있습니다. 대시보드 → **SQL Editor** → New query 에 **전체를 붙여넣고 한 번 Run**
-하면 끝입니다.
-
-```bash
-# 클립보드로 복사 (Windows)
-Get-Content supabase/ALL_MIGRATIONS.sql -Raw | Set-Clipboard
-```
-
-나눠서 실행하고 싶다면 개별 파일을 **번호 순서대로** 하나씩 돌리세요.
-
-```
-supabase/migrations/0001_extensions.sql   pgcrypto 확장
-supabase/migrations/0002_core.sql         members, app_settings
-supabase/migrations/0003_content.sql      geek_news, trend_items, articles, …
-supabase/migrations/0004_unit.sql         meetings, rotations, scraps
-supabase/migrations/0005_ops.sql          sync_runs, attachments
-supabase/migrations/0006_indexes.sql      인덱스 + updated_at 트리거
-supabase/migrations/0007_rls.sql          RLS 활성화
-supabase/migrations/0008_seed.sql         유닛원·로테이션·발행설정 시드
-supabase/migrations/0009_scraps.sql       보관함 조회 인덱스
-supabase/migrations/0010_google_identities.sql  구글 로그인 신원
-supabase/migrations/0011_apple_identities.sql   애플 로그인 신원
-supabase/migrations/0012_member_epid.sql        사번(epid)
-supabase/migrations/0013_mobile_read_access.sql 모바일 읽기 뷰
-supabase/migrations/0014_showcase.sql     showcase_items
-supabase/migrations/0015_hada_contents.sql      hada_contents (상세 본문)
-```
-
-모든 파일이 `create table if not exists` / `on conflict do nothing` 이라
-두 번 실행해도 안전합니다.
-
-> 스키마를 고칠 때는 `migrations/` 의 개별 파일을 고치고 `npm run sql:bundle` 로
-> `ALL_MIGRATIONS.sql` 을 다시 만드세요.
-
-### 방법 B — Supabase CLI
-
-```bash
-npx supabase login                      # 또는 SUPABASE_ACCESS_TOKEN 환경변수
-npx supabase link --project-ref <프로젝트 ref>
-npx supabase db push
-```
-
-`db push` 는 `supabase/migrations/` 를 파일명 순으로 적용하고,
-`supabase_migrations.schema_migrations` 에 적용 이력을 남깁니다.
-
-### 방법 C — psql
-
-```bash
-export PGURL='postgresql://postgres.<ref>:<DB비밀번호>@aws-0-<region>.pooler.supabase.com:5432/postgres'
-for f in supabase/migrations/*.sql; do
-  echo "→ $f"
-  psql "$PGURL" -v ON_ERROR_STOP=1 -f "$f"
-done
-```
-
----
-
-## 2. Storage 버킷 만들기
-
-발표 현장 사진과 발표 자료(PDF)를 담습니다.
-
-대시보드 → **Storage** → New bucket
-
-| 항목 | 값 |
-|---|---|
-| Name | `newsletter` |
-| Public bucket | **끔** (private) |
-| File size limit | 500 MB |
-
-SQL 로 만들려면:
-
-```sql
-insert into storage.buckets (id, name, public, file_size_limit)
-values ('newsletter', 'newsletter', false, 524288000)
-on conflict (id) do nothing;
-```
-
-> **private 버킷일 때의 주의점**
-> `src/lib/data/ops.ts` 의 `storageUrl()` 은 지금 `getPublicUrl()` 을 씁니다.
-> private 버킷에서는 이 URL 이 열리지 않으므로, 아래처럼 서명 URL 로 바꾸세요.
->
-> ```ts
-> const { data } = await supabaseAdmin()
->   .storage.from(supabaseEnv.bucket)
->   .createSignedUrl(path, 60 * 60);   // 1시간
-> return data?.signedUrl ?? null;
-> ```
->
-> 사내 자료가 아닌 이미지만 다룬다면 버킷을 public 으로 두고 현재 코드를 그대로
-> 써도 됩니다. 발표 자료가 보안 등급 II 문서라면 private + 서명 URL 이 맞습니다.
-
----
-
-## 3. 만들어지는 테이블
-
-### 콘텐츠
-
-| 테이블 | PK | 설명 |
-|---|---|---|
-| `geek_news` | `url` (긱뉴스 토픽 URL) | news.hada.io 수집분. 제목·요약을 원문 그대로 저장 |
-| `showcase_items` | `url` (토픽 URL) | news.hada.io/show 수집분. 직접 만든 것 소개 |
+| `geek_news` | `url` (긱뉴스 토픽 URL) | news.hada.io 수집분. 제목 · 요약을 원문 그대로 |
+| `showcase_items` | `url` (토픽 URL) | news.hada.io/show — 직접 만든 것 소개 |
 | `hada_contents` | `url` (토픽 URL) | 위 둘의 **상세 페이지 본문**. 마크다운, 원문 그대로 |
-| `trend_items` | `source_url` (원본 URL) | GitHub·HN·arXiv·긱뉴스를 AI 가 한국어 기사로 요약 |
-| `articles` | `id` | 유닛원이 쓰는 글. `section` = review \| deep |
-| `article_sources` | `id` | 기사별 원문 링크 |
-| `comments` | `id` | 심층 분석 기사의 토론 코멘트 |
+| `trend_items` | `source_url` (원본 URL) | GitHub · HN · arXiv 를 AI 가 한국어 기사로 요약 |
+| `app_settings` | `key` | `issue_no` 하나 — `mobile_issue` 가 발행 호수를 계산하는 기준 |
+| `sync_runs` | `id` | 수집 실행 기록 (건수 · 로그 · 오류) |
 
-**`geek_news.url` 을 PK 로 쓰는 이유** — 목록의 *요약부* 링크입니다.
-타이틀 href(원문 사이트)가 아니라 긱뉴스 내부 주소라서 안정적이고,
-`on conflict do nothing` 만으로 재동기화 시 기존 항목이 자동으로 걸러집니다.
+운영 DB 에는 이 밖에 쓰지 않는 수집기(collector)의 표와 열이 남아 있습니다 —
+[`supabase/LIVE_ONLY.md`](../supabase/LIVE_ONLY.md) 의 B.
+
+**`geek_news.url` 을 PK 로 쓰는 이유** — 목록의 *요약부* 링크입니다. 타이틀 href(원문
+사이트)가 아니라 긱뉴스 내부 주소라서 안정적이고, `on conflict do nothing` 만으로 다시
+수집해도 기존 항목이 걸러집니다.
 
 ```
-일반 토픽      https://news.hada.io/topic?id=32516
-긱뉴스 자체글  https://news.hada.io/article/<slug>    ← ARTICLE 배지가 붙은 행
+일반 토픽      https://news.hada.io/topic?id=32516     → 웹 /articles/geek/32516
+긱뉴스 자체글  https://news.hada.io/article/<slug>     → 웹 /articles/geek/article/<slug>
 ```
 
-**`hada_contents` 를 목록 테이블과 나눈 이유** — 목록 조회가 `select('*')` 라,
-본문을 `geek_news` 에 넣으면 목록 한 번 그릴 때마다 본문을 통째로 끌어옵니다.
-PK 가 `geek_news.url` / `showcase_items.url` 과 같은 값이라 조인은 그대로 됩니다.
-부모가 둘이라 단일 FK 로 표현할 수 없어 FK 는 걸지 않았습니다.
+**`hada_contents` 를 목록 표와 나눈 이유** — 목록을 읽을 때마다 본문을 통째로 끌어오지
+않으려는 것입니다. PK 가 `geek_news.url` / `showcase_items.url` 과 같은 값이라 조인은
+그대로 됩니다. 부모가 둘이라 FK 는 걸지 않았습니다. 저장 범위는 상세 페이지의 **「함께
+보면 좋은 글」 직전까지**이고, 본문을 못 찾으면 빈 문자열이 아니라
+`status = 'parse_failed'` 로 남습니다 — 마크업이 바뀐 것을 조용히 넘기지 않으려고요.
 
-저장 범위는 상세 페이지에서 **"함께 보면 좋은 글" 직전까지**의 본문입니다.
-경계가 리터럴 문자열이라 DOM 절단으로 정확히 끊기고, 그래서 LLM 을 쓰지 않습니다.
-본문을 못 찾으면 빈 문자열이 아니라 `status = 'parse_failed'` 로 남습니다 —
-마크업이 바뀐 것을 조용히 넘기지 않기 위해서입니다.
+**`trend_items.public_id`** 는 `substr(md5(source_url), 1, 12)` 로 계산되는 generated
+column 입니다. URL 을 주소에 그대로 넣을 수 없어 라우팅에 씁니다
+(`/articles/trend/<public_id>`). URL 에서 파생되므로 다시 수집해도 주소가 바뀌지 않습니다.
 
-**`trend_items.public_id`** 는 `substr(md5(source_url), 1, 12)` 로 계산되는
-generated column 입니다. URL 을 그대로 주소에 넣을 수 없어서 라우팅에만 씁니다
-(`/articles/trend/<public_id>`). 값이 URL 에서 파생되므로 재동기화해도 주소가
-바뀌지 않습니다.
-
-**`collected_date`** 는 `(timezone('Asia/Seoul', now()))::date` 가 기본값입니다.
-트렌드 브리핑은 원문 작성일이 불명확한 출처가 섞여 있어 "퍼온 날짜"로 조회합니다.
-
-### 조직 · 운영
-
-| 테이블 | 설명 |
-|---|---|
-| `members` | 유닛원·구독자. 사내 SSO 사번(`emp_no`)이 자연 키 |
-| `meetings` / `meeting_attendees` | 주간 모임 아카이브 |
-| `rotations` | 발표 순번(`deep`) · 주간 당번(`weekly`) |
-| `scraps` | 보관함 — 사용자가 나중에 다시 읽으려고 담아 둔 게시물 (본인만 조회, 관리자는 집계만) |
-| `sync_runs` | 동기화 실행 로그 — 관리자 콘솔의 `pipeline.log` 원천 |
-| `attachments` | 발표 자료 분할 암호화 업로드 이력 |
-| `app_settings` | 발행 호수·발행처 등 런타임 설정 |
+**`collected_date`** 는 `(timezone('Asia/Seoul', now()))::date` 가 기본값인 「수집한 날」
+입니다. 웹은 이 값으로 지면을 묶습니다 — 1면은 카테고리마다 마지막으로 수집한 날 것을
+싣고, 카테고리 목록은 이 날짜로 구분선을 넣어 7일씩 넘깁니다.
 
 ---
 
-## 4. RLS 정책
+## 2. 뷰 — 웹과 앱이 읽는 것
 
-`0007_rls.sql` 은 **모든 테이블에 RLS 를 켜고 정책은 하나도 만들지 않습니다.**
+| 뷰 | 만든 곳 | 한 행 | 거르는 것 |
+|---|---|---|---|
+| `mobile_feed` | 0013 · 0019 | 긱뉴스 + 트렌드 목록 (`type` = `geek` \| `trend`) | 긱뉴스 `is_hidden`, 트렌드 `status <> 'published'` |
+| `mobile_showcase` | 0016 · 0019 | 쇼케이스 목록 (`type` = `show`) | `is_hidden` |
+| `mobile_trend_detail` | 0013 · 0019 | 트렌드 상세 (본문 블록 · 태그) | `status <> 'published'` |
+| `mobile_hada_content` | 0017 | 긱뉴스 · 쇼케이스 본문 (`body_md`) | 수집 실패 행, 부모가 감춰진 행 |
+| `mobile_issue` | 0013 | 항상 한 행 — 발행 호수 · 오늘 건수 | 감춘 글은 세지 않음 |
 
-의도한 구성입니다.
+- **규칙은 뷰에 한 번만 있습니다.** 「숨긴 글은 빼고」, 「공개된 트렌드만」, 목록의 지표
+  문구(`meta` — `★ 711 this week · Python` 같은 것)는 SQL 이 계산해 내려 줍니다. 웹과
+  앱이 그 규칙을 각자 들고 있다가 어긋난 적이 있어서입니다.
+- **웹용 열은 뷰 끝에 붙어 있습니다**(`0019` — `collected_date` · `score` ·
+  `origin_url`). 앱은 열 이름을 골라 읽어 끝에 붙은 열은 보지 않으므로, 이미 배포된 앱
+  빌드에 영향이 없습니다. 뷰를 고칠 때도 **열은 끝에만 붙이세요** —
+  `create or replace view` 는 기존 열의 이름 · 순서 · 타입을 바꿀 수 없습니다.
+- **`search_text`** 는 제목 · 요약 · 저장소 이름 · 태그를 이어 붙인 열입니다. 웹 ·
+  앱의 검색이 이 열에 `ilike` 를 겁니다.
 
-- 로그인 주체가 Supabase Auth 가 아니라 **사내 SSO** 라서, `auth.uid()` 기반
-  정책을 쓸 수가 없습니다.
-- 모든 DB 접근이 Next.js 서버에서 `service_role` 키로 일어납니다.
-  `service_role` 은 RLS 를 우회하므로 서버 코드는 정상 동작합니다.
-- `anon` / `authenticated` 롤은 정책이 없어 전부 거부됩니다. 실수로 클라이언트에서
-  호출하거나 `anon` 키가 유출돼도 사내 콘텐츠가 새지 않습니다.
-
-나중에 브라우저에서 직접 조회할 일이 생기면 그때 `select` 정책을 명시적으로
-추가하세요. 예를 들어 발행된 기사만 공개하려면:
-
-```sql
-create policy "published articles are readable"
-  on public.articles for select
-  to anon
-  using (status = 'published');
-```
+뷰의 열 계약 전체는 모바일 저장소의
+[`docs/03-api-contract.md`](https://github.com/swpark3179/ai-news-letter-mobile/blob/main/docs/03-api-contract.md)
+에 있습니다.
 
 ---
 
-## 5. 시드 데이터
+## 3. 권한
 
-`0008_seed.sql` 이 넣는 것:
+`0007` 은 **모든 표에 RLS 를 켜고 정책은 하나도 만들지 않습니다.** 의도한 구성입니다.
 
-- 유닛원 4명 (박세원 Unit 장 / 문명훈 / 박미숙 / 한솔아) + 구독자 예시 1명
-- 심층 발표 순번 4건, 주간 리뷰 당번 4건
-- 발행 설정 (`issue_no`, `publisher`, `show_en_subtitles` 등)
+| 역할 | 할 수 있는 것 | 근거 |
+|---|---|---|
+| `service_role` (수집기) | 표 읽기 · 쓰기 | RLS 를 우회한다 |
+| `anon` (웹 · 앱) | 뷰 5개 SELECT **만** | `0018` 이 나머지를 전부 회수하고 기본 권한(default privileges)도 고쳤다 |
+| `authenticated` | 아무것도 없음 | 로그인이 없어 이 역할로 오는 정상 요청이 없다 |
 
-> **사번은 임시값(`21084213` 등)입니다.** 실제 SSO 를 붙이기 전에 실제 사번으로
-> 바꿔야 합니다. 사번이 맞지 않으면 SSO 로그인 시 같은 사람이 구독자로 새로
-> 생성됩니다.
->
-> ```sql
-> update public.members set emp_no = '<실제 사번>' where name = '박세원';
-> ```
+- 뷰는 소유자(postgres) 권한으로 표를 읽습니다. 그래서 표를 닫아 둔 채 뷰만 열 수
+  있습니다. Supabase advisor 가 `security_definer_view` 로 알리는 것은 이 구성 때문이고,
+  `rls_enabled_no_policy` 도 정책 0건이 의도라 그대로 둡니다.
+- Supabase 프로젝트의 기본 권한은 public 에 새로 만드는 객체를 anon 에게 **전부** 열어
+  둡니다. `0018` 이 그것을 고쳤으므로, 새 뷰를 앱 · 웹에 열려면 그 마이그레이션에
+  `grant select on public.<뷰> to anon;` 을 적으면 됩니다.
+- 뷰를 새로 만들거나 고친 뒤에는 **`VERIFY.sql` ⑫** 를 꼭 돌려 보세요. anon 에게 무엇이
+  열려 있는지 보는 항목입니다.
 
-관리자 권한 부여/회수:
+---
+
+## 4. `graveyard` 스키마
+
+`0020` 이 웹 · 앱 · 수집기 어느 쪽도 쓰지 않는 표 14개와 함수 9개를 옮겨 둔 곳입니다
+(예전 로그인 · 관리자 · 기사 · 댓글 · 모임 · 보관함 · 업로드). 지우기 전에 한동안 지켜보려는
+것이고, anon · authenticated 는 접근할 수 없습니다.
 
 ```sql
-update public.members set is_admin = true  where emp_no = '<사번>';
-update public.members set is_admin = false where emp_no = '<사번>';
+-- 되돌리기 (표 하나)
+alter table graveyard.members set schema public;
 ```
 
-역할 승격 (구독자 → 유닛원):
+지켜본 뒤 다음 마이그레이션에서 `drop schema graveyard cascade` 합니다. 무엇이 옮겨
+갔는지는 [`supabase/LIVE_ONLY.md`](../supabase/LIVE_ONLY.md) 의 A · C 를 보세요.
+
+---
+
+## 5. 운영 중 자주 쓰는 쿼리
 
 ```sql
-update public.members
-   set role = 'member', avatar_tone = 'blue', initial = '길동'
- where emp_no = '<사번>';
+-- 오늘(KST) 수집 현황 — 카테고리별
+select type, coalesce(source, '-') as source, count(*)
+  from public.mobile_feed
+ where collected_date = (now() at time zone 'Asia/Seoul')::date
+ group by 1, 2
+union all
+select 'show', '-', count(*)
+  from public.mobile_showcase
+ where collected_date = (now() at time zone 'Asia/Seoul')::date;
+
+-- GitHub Trending 이 daily / weekly / monthly 를 모두 가져왔는지
+select source_variant, count(*) from public.trend_items where source = 'github' group by 1;
+
+-- 최근 수집 기록
+select kind, provider, status, started_at, fetched_count, inserted_count, error
+  from public.sync_runs order by started_at desc limit 10;
+
+-- 본문 수집 상태 (parse_failed 가 늘면 상세 페이지 마크업이 바뀐 것)
+select source, status, count(*) from public.hada_contents group by 1, 2 order by 1, 2;
+
+-- 품질이 나쁜 트렌드 기사 숨기기
+update public.trend_items set status = 'hidden' where source_url = '<url>';
+
+-- 긱뉴스 · 쇼케이스 글 숨기기 (본문도 뷰에서 함께 빠진다)
+update public.geek_news      set is_hidden = true where url = '<토픽 URL>';
+update public.showcase_items set is_hidden = true where url = '<토픽 URL>';
 ```
+
+> **행을 지우지 마세요.** `trend_items` · `geek_news` · `showcase_items` 에서 행을
+> **삭제**하면 PK 가 사라져 다음 수집에서 같은 항목을 다시 담습니다. 노출만 막으려면
+> 위처럼 `status = 'hidden'` 또는 `is_hidden = true` 로 두세요.
 
 ---
 
 ## 6. 적용 확인
 
-**`supabase/VERIFY.sql`** 을 SQL Editor 에 붙여넣고 블록별로 실행하세요.
-확인 항목 9가지가 순서대로 들어 있습니다.
-
-| # | 확인 | 기대 결과 |
-|---|---|---|
-| ① | 테이블 | 16개 |
-| ② | RLS | 16개 모두 `rowsecurity = true` |
-| ③ | 정책 | **0건** (service_role 전용 구성이므로 정상) |
-| ④ | 인덱스 | 21개 내외 |
-| ⑤ | `trend_items.public_id` | `is_generated = ALWAYS` |
-| ⑥ | 유닛원 시드 | 5명 (유닛원 4 + 구독자 1) |
-| ⑦ | 발행 설정 | 5건 |
-| ⑧ | 로테이션 | 8건 (심층 4 + 주간 4) |
-| ⑨ | Storage 버킷 | `newsletter` / `public = false` |
-
----
-
-## 7. 애플리케이션 연결
-
-`.env.local` (로컬):
-
-```bash
-cp .env.local.example .env.local
-```
-
-```dotenv
-SUPABASE_URL=https://<ref>.supabase.co
-SUPABASE_SERVICE_ROLE_KEY=<service_role 키>
-SUPABASE_STORAGE_BUCKET=newsletter
-SESSION_SECRET=<node -e "console.log(require('crypto').randomBytes(32).toString('base64url'))">
-```
-
-첫 데이터 채우기:
-
-```bash
-npm run sync:geeknews -- --dry-run   # 파싱만 확인
-npm run sync:geeknews                # 실제 적재
-npm run sync:trend -- --dry-run      # 수집 대상만 확인 (LLM 호출 없음)
-npm run sync:trend -- --limit=5      # 5건만 기사화해 확인
-npm run dev
-```
-
----
-
-## 8. 운영 중 자주 쓰는 쿼리
-
-```sql
--- 오늘 수집 현황
-select 'geek' src, count(*) from geek_news where collected_date = (now() at time zone 'Asia/Seoul')::date
-union all
-select source, count(*) from trend_items where collected_date = (now() at time zone 'Asia/Seoul')::date group by source;
-
--- GitHub Trending 이 daily/weekly/monthly 를 모두 가져왔는지
-select source_variant, count(*) from trend_items where source = 'github' group by 1;
-
--- 최근 동기화 로그
-select kind, provider, status, started_at, fetched_count, inserted_count, error
-  from sync_runs order by started_at desc limit 10;
-
--- 품질이 나쁜 자동 기사 숨기기 (삭제하면 다음 동기화 때 다시 생성된다)
-update trend_items set status = 'hidden' where source_url = '<url>';
-
--- 조각이 남은 실패한 업로드 정리
-select id, file_name, status, received_chunks, chunk_count, error
-  from attachments where status <> 'stored' order by created_at desc;
-
--- 많이 보관된 게시물 (관리자 화면 /admin/scraps 와 같은 집계)
-select s.target_type,
-       s.target_key,
-       count(*)          as saves,
-       max(s.created_at) as last_saved_at
-  from scraps s
- group by 1, 2
- order by saves desc, last_saved_at desc
- limit 20;
-
--- 보관 기능을 쓰는 사람 수 · 종류별 건수
-select count(distinct member_id) as savers,
-       count(*) filter (where target_type = 'geek')  as geek,
-       count(*) filter (where target_type = 'trend') as trend
-  from scraps;
-```
-
-> **주의** — `trend_items` 나 `geek_news` 에서 행을 **삭제**하면 PK 가 사라져
-> 다음 동기화에서 같은 항목을 다시 수집합니다. 노출만 막으려면 `status='hidden'`
-> (트렌드) 또는 `is_hidden = true` (긱뉴스) 로 두세요.
+[`supabase/VERIFY.sql`](../supabase/VERIFY.sql) 을 SQL Editor 에서 블록별로 실행합니다.
+기대값은 각 블록의 주석에 있고, 중요한 것은
+[SUPABASE_MANUAL_SETUP.md 3단계](SUPABASE_MANUAL_SETUP.md#3단계--적용-확인) 에 추려
+두었습니다.

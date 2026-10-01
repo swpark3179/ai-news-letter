@@ -48,7 +48,7 @@ export default function ErrorNotice({ error, reset }: Props) {
           <>
             <h1 className={s.title}>외부 연결에 실패했습니다</h1>
             <p className={s.desc}>
-              Supabase 또는 외부 API 에 닿지 못했습니다. 사내 프록시 환경이라면{" "}
+              Supabase 또는 외부 API 에 닿지 못했습니다. 프록시 환경이라면{" "}
               <code>HTTPS_PROXY</code> 설정을 확인하세요.
             </p>
           </>

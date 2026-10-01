@@ -76,7 +76,7 @@ src/
     sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
     supabase/          read.ts(웹 · anon 키) · admin-client.ts(수집 스크립트 · service_role)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 18개
+supabase/migrations/   스키마 SQL 21개 (0020 이후 안 쓰는 표는 graveyard 스키마에)
 .github/workflows/     동기화 워크플로 4개 + 진단 1개
 ```
 
@@ -182,7 +182,7 @@ GitHub Actions 의 **긱뉴스 상세 구조 진단** 워크플로를 dispatch �
 | arXiv | ✅ | 공식 Atom API (cs.AI/CL/IR/LG) · 429 면 `rss.arxiv.org` 공지 RSS 로 대체 | `https://arxiv.org/abs/{id}` |
 | 긱뉴스 | — | 수집된 `geek_news` 재사용 (`--only=geeknews` 로만) | 토픽 URL |
 
-긱뉴스는 **긱뉴스 데일리**가 원문 그대로 담당하므로 기본 출처에서 빼 두었습니다.
+긱뉴스는 **긱뉴스** 카테고리가 원문 그대로 담당하므로 기본 출처에서 빼 두었습니다.
 같은 글이 두 카테고리에 겹쳐 실리지 않게 하려는 것입니다.
 
 **출처 하나가 죽어도 실행은 계속됩니다.** 수집에 실패한 출처는 `sync_runs.logs` 에
@@ -215,19 +215,19 @@ Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니�
 
 ## 문서
 
-- **[docs/SUPABASE_MANUAL_SETUP.md](docs/SUPABASE_MANUAL_SETUP.md) — 처음 셋업하는 경우 여기부터** (대시보드 단계별 절차, 약 15분)
-- [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) — 테이블 구조 · RLS 설계 배경 · 운영 쿼리
+- **[docs/SUPABASE_MANUAL_SETUP.md](docs/SUPABASE_MANUAL_SETUP.md) — 처음 셋업하는 경우 여기부터** (대시보드 단계별 절차, 약 10분)
+- [docs/SUPABASE_SETUP.md](docs/SUPABASE_SETUP.md) — 표 · 뷰 · 권한 설계와 운영 쿼리
 - [docs/VERCEL_DEPLOY.md](docs/VERCEL_DEPLOY.md) — Vercel 배포 절차 · 플랫폼 한도 · 공개 전 점검
 - [docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md) — Secrets · 워크플로 · 제약
-- [docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) — 쇼케이스 데이터 조회 (스키마 · **모바일에서 읽는 법**)
+- [docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) — 쇼케이스 데이터 (수집 · 중복 정리 · 뷰)
 - [supabase/LIVE_ONLY.md](supabase/LIVE_ONLY.md) — 운영 DB 에만 있고 마이그레이션에는 없는 객체
 
 ---
 
 ## 알아 둘 것
 
-**사내 프록시** — `HTTP_PROXY` / `HTTPS_PROXY` 가 있으면 수집 스크립트가 자동으로
-undici 디스패처를 설정합니다 (`src/lib/sync/proxy.ts`). Node 의 내장 fetch 는
+**프록시** — `HTTP_PROXY` / `HTTPS_PROXY` 가 있으면 수집 스크립트가 자동으로
+undici 디스패처를 설정합니다 (`src/lib/proxy.ts`). Node 의 내장 fetch 는
 이 환경변수를 기본적으로 무시하기 때문에 필요한 처리입니다.
 
 **User-Agent** — news.hada.io 는 UA 에 `bot` 이 들어가면 403 을 돌려줍니다
