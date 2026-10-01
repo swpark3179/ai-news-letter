@@ -4,11 +4,11 @@
 -- 마지막 SELECT 의 결과만 표시되므로, 한 블록씩 끊어서 실행하는 편이 편합니다.
 -- =============================================================================
 
--- ① 테이블 17개가 모두 만들어졌는가
---    기대: app_settings, article_sources, articles, attachments, comments,
---          geek_news, meeting_attendees, meetings, member_apple_identities,
---          member_google_identities, member_refresh_tokens, members, rotations,
---          scraps, showcase_items, sync_runs, trend_items
+-- ① public 의 테이블
+--    기대 (0020 이후): app_settings, geek_news, hada_contents, showcase_items,
+--                     sync_runs, trend_items
+--    운영 DB 에는 collector_receipts · collector_transfers · collector_trend_pending 이
+--    더 있다 (LIVE_ONLY.md B). 0020 이 graveyard 로 옮긴 표는 ㉑ 에서 본다.
 select table_name
   from information_schema.tables
  where table_schema = 'public'
@@ -16,7 +16,7 @@ select table_name
  order by table_name;
 
 
--- ② RLS 가 17개 테이블 전부 켜져 있는가 (rowsecurity 가 모두 true 여야 함)
+-- ② RLS 가 public 테이블 전부 켜져 있는가 (rowsecurity 가 모두 true 여야 함)
 select tablename, rowsecurity
   from pg_tables
  where schemaname = 'public'
@@ -34,8 +34,8 @@ select schemaname, tablename, policyname
  where schemaname = 'public';
 
 
--- ④ 인덱스가 만들어졌는가 (21개 내외)
---    scraps 2개 + 모바일 로그인 6개(0010 의 4개 · 0011 의 2개) 포함
+-- ④ 인덱스가 만들어졌는가 (0020 이후 9개 — 운영은 collector 인덱스가 더 있다)
+--    scraps · 모바일 로그인 인덱스는 표를 따라 graveyard 로 옮겨 갔다.
 select tablename, indexname
   from pg_indexes
  where schemaname = 'public'
@@ -52,40 +52,23 @@ select column_name, is_generated, generation_expression
    and column_name = 'public_id';
 
 
--- ⑥ 시드 — 유닛원 4명 + 구독자 1명
-select emp_no, name, role, is_admin, initial, avatar_tone
-  from public.members
- order by role, name;
+-- ⑥ (0020 이후 없음) 유닛원 시드 — members 는 graveyard 로 옮겨 갔다 (㉑).
 
 
--- ⑦ 시드 — 발행 설정 5건
+-- ⑦ 발행 설정 — 0021 이후 issue_no 1건 (mobile_issue 가 읽는다)
 select key, value from public.app_settings order by key;
 
 
--- ⑧ 시드 — 로테이션 8건 (심층 4 + 주간 4)
-select kind, period_label, status, m.name
-  from public.rotations r
-  join public.members m on m.id = r.member_id
- order by kind, period_start;
+-- ⑧ (0020 이후 없음) 로테이션 시드 — rotations 는 graveyard 로 옮겨 갔다 (㉑).
 
 
--- ⑨ Storage 버킷이 만들어졌는가
---    기대: newsletter / public = false
+-- ⑨ Storage 버킷
+--    기대 (5단계 이후): 0 rows. 기사 사진을 올리던 newsletter 버킷은 쓰는 곳이 없어
+--    대시보드(Storage)에서 지운다 — SQL 로는 지울 수 없다(storage.protect_delete).
 select id, name, public, file_size_limit from storage.buckets;
 
 
--- ⑩ members.epid 컬럼과 부분 유니크 인덱스 (0012)
---    기대: epid / YES(nullable), members_epid_key
-select column_name, data_type, is_nullable
-  from information_schema.columns
- where table_schema = 'public'
-   and table_name = 'members'
-   and column_name = 'epid';
-
-select indexname, indexdef
-  from pg_indexes
- where schemaname = 'public'
-   and indexname = 'members_epid_key';
+-- ⑩ (0020 이후 없음) members.epid — members 는 graveyard 로 옮겨 갔다 (㉑).
 
 
 -- ⑪ 모바일 읽기 뷰 5개가 만들어졌는가 (0013 · 0016 · 0017)
@@ -225,3 +208,30 @@ select c.relname,
    and c.relname in ('mobile_feed', 'mobile_showcase', 'mobile_trend_detail')
  group by c.relname
  order by c.relname;
+
+
+-- ㉑ 안 쓰는 표 · 함수가 graveyard 로 옮겨졌는가 (0020)
+--    기대: public 쪽 0 rows.
+--          graveyard 쪽 표 12개(새 프로젝트) · 14개 + 함수 9개(운영 — LIVE_ONLY.md A 포함).
+--    public 에 같은 이름이 다시 보이면 ALL_MIGRATIONS.sql 을 다시 돌려 0002 등이 빈 표를
+--    새로 만든 것이다. graveyard 쪽이 원래 데이터다.
+select n.nspname as 스키마, c.relname as 표
+  from pg_class c
+  join pg_namespace n on n.oid = c.relnamespace
+ where c.relkind = 'r'
+   and n.nspname in ('public', 'graveyard')
+   and c.relname in ('members', 'articles', 'article_sources', 'comments', 'meetings',
+                     'meeting_attendees', 'rotations', 'scraps', 'attachments',
+                     'member_google_identities', 'member_refresh_tokens',
+                     'member_apple_identities', 'allowed_social_identities',
+                     'member_auth_accounts')
+ order by 1, 2;
+
+select p.oid::regprocedure as graveyard_함수
+  from pg_proc p
+ where p.pronamespace = 'graveyard'::regnamespace
+ order by 1;
+
+--    기대: false · false — 앱 · 웹의 키로는 graveyard 에 들어오지 못한다.
+select has_schema_privilege('anon', 'graveyard', 'USAGE')          as anon_접근,
+       has_schema_privilege('authenticated', 'graveyard', 'USAGE') as authenticated_접근;

@@ -7,7 +7,12 @@
 새 프로젝트를 이 저장소로 세우면 여기 있는 것은 하나도 생기지 않습니다. 그래도
 웹·앱·수집기가 모두 정상으로 돕니다 — 셋 다 이 객체들을 쓰지 않습니다.
 
-## A. 모바일 로그인 시절의 잔재 — 5단계에서 지운다
+> **2026-10-01 (5단계):** A 와 C 의 표 · 함수는 `0020_graveyard.sql` 이 `graveyard`
+> 스키마로 옮겼습니다. 아직 지우지 않았고, 지켜본 뒤 다음 마이그레이션에서
+> `drop schema graveyard cascade` 합니다. 되돌리려면
+> `alter table graveyard.<표> set schema public` 입니다.
+
+## A. 모바일 로그인 시절의 잔재 — `graveyard` 로 옮김 (0020)
 
 모바일 앱이 Google · Apple 로그인을 하던 때 만들어졌고, 정의는 모바일 저장소에서
 걷어 낸 뒤 어디에도 남지 않았습니다. 앱은 로그인을 전면 제거했고, 아래 표는 모두
@@ -19,9 +24,10 @@
 | 열 · 인덱스 | `members.oauth_sign_key` · `members_oauth_sign_key_uidx` |
 | security definer 함수 | `current_member_id()` · `is_active_member()` · `mobile_resolve_member()` · `mobile_match_member(uuid)` · `mobile_member_json(uuid, uuid)` · `mobile_link_member_by_emp_no(text)` · `mobile_link_member_by_sign_key(text)` · `mobile_clear_scraps()` · `mobile_delete_account()` |
 
-함수 9개는 anon 이 실행할 수 있었던 것을 `0018` 이 닫았습니다. 표와 함께 5단계에서
-지웁니다. Supabase Auth 에 남은 사용자 1명과 Google · Apple 공급자 설정도 그때
-대시보드에서 정리합니다.
+함수 9개는 anon 이 실행할 수 있었던 것을 `0018` 이 닫았고, 표와 함께 `0020` 이
+`graveyard` 로 옮겼습니다. `members.oauth_sign_key` 와 그 인덱스는 `members` 를 따라
+갔습니다. Supabase Auth 에 남은 사용자 1명(Apple, 9/3 가입)과 Google · Apple 공급자
+설정은 대시보드에서 정리합니다 — SQL 로 지우지 않습니다.
 
 ## B. 외부 수집기(collector) — 쓰지 않음, 검토 대기
 
@@ -51,7 +57,7 @@ LLM(`fabrix` 공급자)으로 긱뉴스 · 쇼케이스 요약을 다시 쓰고 
 > 그 위의 인덱스가 아무 경고 없이 함께 사라집니다. 순서는 인덱스 → 생성 열 →
 > 함수 → 표입니다.
 
-## C. 저장소에 정의가 있지만 더는 쓰지 않는 것 — 5단계에서 지운다
+## C. 저장소에 정의가 있지만 더는 쓰지 않는 것 — `graveyard` 로 옮김 (0020)
 
 참고로 함께 적습니다. 2단계에서 웹의 로그인 · 관리자 · 기사 · 댓글 · 모임 · 업로드를
 걷어 내면 아래를 읽거나 쓰는 코드가 없어집니다.
@@ -65,8 +71,9 @@ LLM(`fabrix` 공급자)으로 긱뉴스 · 쇼케이스 요약을 다시 쓰고 
 | `member_google_identities` · `member_refresh_tokens` | 0010 | 0 · 0 |
 | `member_apple_identities` | 0011 | 0 |
 
-Storage 의 `newsletter` 버킷(파일 0개)도 같은 때 지웁니다.
+Storage 의 `newsletter` 버킷(파일 0개)은 마이그레이션이 아니라 손으로 만든 것이고,
+SQL 로는 지울 수 없어(`storage.protect_delete` 트리거) 대시보드에서 지웁니다.
 
 **남기는 것:** `geek_news` · `showcase_items` · `trend_items` · `hada_contents` ·
-`app_settings`(`mobile_issue` 가 `issue_no` 를 읽는다) · `sync_runs`(수집 실행 기록) ·
-모바일 뷰 5개.
+`app_settings`(`mobile_issue` 가 `issue_no` 를 읽는다 — 나머지 키는 `0021` 이 지운다) ·
+`sync_runs`(수집 실행 기록) · `touch_updated_at()`(`app_settings` 트리거) · 모바일 뷰 5개.
