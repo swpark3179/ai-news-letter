@@ -3,14 +3,11 @@ import { notFound } from "next/navigation";
 import type { Metadata } from "next";
 import ArticleBody from "@/components/article/ArticleBody";
 import RelatedCard, { type RelatedItem } from "@/components/article/RelatedCard";
-import ScrapButton from "@/components/scrap/ScrapButton";
 import s from "@/components/article/article.module.css";
 import { SECTION_MAP, SRC, TREND_SOURCE_TO_KIND, sourceStyleOf } from "@/lib/domain";
 import { routes } from "@/lib/routes";
 import { dotDate } from "@/lib/format";
 import { getTrendItemByPublicId, getTrendItems } from "@/lib/data/content";
-import { getSessionUser } from "@/lib/auth/current-user";
-import { isSaved } from "@/lib/data/scraps";
 
 export const dynamic = "force-dynamic";
 
@@ -27,7 +24,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 /**
  * 트렌드 브리핑 상세.
  *
- * 유닛원이 쓴 기사와 달리 작성자가 없고 "AI 자동 요약 · 원문 1건" 표기를 쓴다
+ * 작성자 대신 "AI 자동 요약 · 원문 1건" 표기를 쓴다
  * (디자인 454~459행의 showSource 분기).
  */
 export default async function TrendArticlePage({ params }: Props) {
@@ -38,9 +35,6 @@ export default async function TrendArticlePage({ params }: Props) {
 
   const style = sourceStyleOf(item.source);
   const kindLabel = SRC[TREND_SOURCE_TO_KIND[item.source]].label;
-
-  const user = await getSessionUser();
-  const saved = user ? await isSaved(user.id, "trend", item.source_url) : false;
 
   const siblings = await getTrendItems({ limit: 8 });
   const related: RelatedItem[] = siblings
@@ -82,15 +76,6 @@ export default async function TrendArticlePage({ params }: Props) {
               {item.llm_provider ? ` · ${item.llm_provider}/${item.llm_model}` : ""}
             </span>
           </div>
-
-          {user && (
-            <ScrapButton
-              targetType="trend"
-              targetKey={item.source_url}
-              initialSaved={saved}
-              variant="byline"
-            />
-          )}
         </div>
 
         <div className={s.contentGrid}>

@@ -26,12 +26,6 @@ import type { SyncRun } from "./run-log";
  * PK 가 같은 토픽 URL 이고 상세 페이지도 하나뿐이다. 소유한 목록만 바뀌었을 뿐
  * 본문은 그대로 쓸 수 있으므로 `source` 라벨만 `showcase` 로 고쳐 단다. 지우면
  * 다음 실행에서 같은 페이지를 쓸데없이 다시 받는다.
- *
- * ── 보관함(`scraps`)
- * `scraps` 는 `(target_type, target_key)` 로만 참조하고 FK 가 없다. 원본이 사라진
- * 항목은 이미 null 로 떨어지게 되어 있어(lib/data/scraps.ts) 목록이 깨지지 않는다.
- * 다만 긱뉴스로 보관해 둔 항목은 쇼케이스로 옮겨진 뒤 보관함에서 빈칸이 된다 —
- * 쇼케이스에는 아직 보관 대상 종류가 없기 때문이다.
  */
 
 /** PostgREST 의 `.in()` 에 한 번에 넣을 최대 개수 (hada-content.ts 와 같은 값). */

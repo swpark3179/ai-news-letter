@@ -22,7 +22,7 @@ export default function SetupNotice({ missing }: { missing: string[] }) {
         <ol className={s.steps}>
           <li>
             <code>docs/SUPABASE_SETUP.md</code> 를 따라{" "}
-            <code>supabase/migrations/</code> 의 SQL 8개를 순서대로 적용
+            <code>supabase/migrations/</code> 의 SQL 을 번호 순서대로 적용
           </li>
           <li>
             <code>.env.local</code> 에 아래 값을 채운 뒤 개발 서버 재시작
@@ -36,9 +36,6 @@ export default function SetupNotice({ missing }: { missing: string[] }) {
         <div className={s.actions}>
           <Link href="/" className={s.retry} style={{ textDecoration: "none" }}>
             다시 시도
-          </Link>
-          <Link href="/login" className={s.link}>
-            로그인 화면으로
           </Link>
         </div>
       </div>

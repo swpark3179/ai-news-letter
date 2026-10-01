@@ -27,10 +27,8 @@ export interface GeekSyncOptions {
   lookbackDays?: number;
   maxPages?: number;
   dryRun?: boolean;
-  trigger?: "schedule" | "manual" | "admin_ui";
+  trigger?: "schedule" | "manual";
   echo?: boolean;
-  /** API 가 미리 만들어 둔 sync_runs 행에 이어 쓸 때 */
-  runId?: string;
 }
 
 export interface GeekSyncResult {
@@ -56,14 +54,12 @@ export async function syncGeekNews(
   const lookbackDays = opts.lookbackDays ?? 3;
   const maxPages = opts.maxPages ?? 8;
 
-  const run = opts.runId
-    ? SyncRun.attach(db, opts.runId, { kind: "geeknews", echo: opts.echo })
-    : await SyncRun.start(db, {
-        kind: "geeknews",
-        trigger: opts.trigger ?? "manual",
-        dryRun: opts.dryRun,
-        echo: opts.echo,
-      });
+  const run = await SyncRun.start(db, {
+    kind: "geeknews",
+    trigger: opts.trigger ?? "manual",
+    dryRun: opts.dryRun,
+    echo: opts.echo,
+  });
 
   /**
    * 본문 단계 — 목록 적재가 끝난 뒤 상세 페이지를 열어 hada_contents 를 채운다.
@@ -77,9 +73,6 @@ export async function syncGeekNews(
       source: "geeknews",
       freshUrls,
       dryRun: opts.dryRun,
-      // 관리자 화면에서 부를 때는 예산을 줄인다 — Vercel 함수의 maxDuration(300초)
-      // 안에서 목록 수집까지 함께 끝나야 한다.
-      maxPerRun: opts.trigger === "admin_ui" ? 15 : undefined,
       run,
     });
 

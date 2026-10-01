@@ -20,17 +20,17 @@ export default function Masthead({ settings, counts, lastSync, today }: Props) {
       <div className={s.mastRow}>
         <span>{formatIssue(settings.issueNo)}</span>
         <span className={s.mastDate}>{longDateKo(today)}</span>
-        <span>{settings.publisher}</span>
+        <span>매일 07:00 KST 발행</span>
       </div>
 
       <div className={s.titleBlock}>
-        <div className={s.kicker}>Daily Digest for the AI Unit</div>
+        <div className={s.kicker}>Daily AI Digest</div>
         <div className={s.titleRow}>
           <span className={s.titleAi}>AI</span>
           <span className={s.titleKo}>뉴스레터</span>
         </div>
         <div className={s.tagline}>
-          매일 아침 7시, 흩어진 AI 소식을 한 장으로 · 유닛의 리뷰와 심층 분석을 함께
+          매일 아침 7시, 흩어진 AI 소식을 한 장으로
         </div>
       </div>
 

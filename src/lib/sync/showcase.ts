@@ -27,10 +27,8 @@ export interface ShowcaseSyncOptions {
   lookbackDays?: number;
   maxPages?: number;
   dryRun?: boolean;
-  trigger?: "schedule" | "manual" | "admin_ui";
+  trigger?: "schedule" | "manual";
   echo?: boolean;
-  /** API 가 미리 만들어 둔 sync_runs 행에 이어 쓸 때 */
-  runId?: string;
 }
 
 export interface ShowcaseSyncResult {
@@ -49,14 +47,12 @@ export async function syncShowcase(
   // /show 는 메인보다 글이 뜸해 5페이지면 며칠치가 다 들어온다.
   const maxPages = opts.maxPages ?? 5;
 
-  const run = opts.runId
-    ? SyncRun.attach(db, opts.runId, { kind: "showcase", echo: opts.echo })
-    : await SyncRun.start(db, {
-        kind: "showcase",
-        trigger: opts.trigger ?? "manual",
-        dryRun: opts.dryRun,
-        echo: opts.echo,
-      });
+  const run = await SyncRun.start(db, {
+    kind: "showcase",
+    trigger: opts.trigger ?? "manual",
+    dryRun: opts.dryRun,
+    echo: opts.echo,
+  });
 
   /** 본문 단계 — 긱뉴스와 같다 (src/lib/sync/hada-content.ts 주석 참고). */
   const collectBodies = (freshUrls: string[]) =>
@@ -64,7 +60,6 @@ export async function syncShowcase(
       source: "showcase",
       freshUrls,
       dryRun: opts.dryRun,
-      maxPerRun: opts.trigger === "admin_ui" ? 15 : undefined,
       run,
     });
 

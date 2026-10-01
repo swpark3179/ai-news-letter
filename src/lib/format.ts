@@ -49,21 +49,10 @@ export function shortDot(v: string | number | Date): string {
   return `${m}.${day}`;
 }
 
-/** '08-19' — 관리자 표 */
-export function dashDate(v: string | number | Date): string {
-  const [, m, day] = ymdParts(toDate(v));
-  return `${m}-${day}`;
-}
-
 /** '0821' — 지면 번호 */
 export function issueNum(v: string | number | Date): string {
   const [, m, day] = ymdParts(toDate(v));
   return `${m}${day}`;
-}
-
-/** 'HH:MM' (KST) — 긱뉴스 수집 시각 */
-export function hhmm(v: string | number | Date): string {
-  return parts(toDate(v), { hour: "2-digit", minute: "2-digit", hour12: false });
 }
 
 /** 'HH:MM:SS' — 파이프라인 로그 타임스탬프 */
@@ -114,16 +103,6 @@ export function relativeKo(
 /** 1284 -> '1,284' */
 export function comma(n: number): string {
   return n.toLocaleString(KO);
-}
-
-/** 4194304 -> '4.00MB' */
-export function mb(bytes: number, digits = 2): string {
-  return `${(bytes / 1024 / 1024).toFixed(digits)}MB`;
-}
-
-/** 본문 블록 글자수로 읽는 시간 추정 (한국어 분당 약 500자) */
-export function readMinutes(text: string): number {
-  return Math.max(1, Math.round(text.length / 500));
 }
 
 /** 발행 호수 — 기준일(창간)로부터의 발행 회차. app_settings.issue_no 를 보정용으로 쓴다. */

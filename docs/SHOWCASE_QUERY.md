@@ -395,6 +395,7 @@ GitHub 에서 확인하려면 Actions → **쇼케이스 동기화** → `Run wo
 | `src/lib/sync/sources/geeknews.ts` | news.hada.io 목록 파서 (메인·쇼케이스 공용) |
 | `src/lib/sync/http.ts` | UA · 요청 간격 · 백오프 |
 | `supabase/migrations/0014_showcase.sql` | 테이블 · 인덱스 · RLS |
-| `supabase/migrations/0013_mobile_read_access.sql` | 앱이 읽는 뷰 3개와 anon grant (쇼케이스는 아직 없음) |
+| `supabase/migrations/0013_mobile_read_access.sql` | 앱이 읽는 뷰 3개와 anon grant |
+| `supabase/migrations/0016_mobile_showcase.sql` | 앱이 읽는 쇼케이스 뷰 `mobile_showcase` |
+| `supabase/migrations/0018_lock_anon_grants.sql` | anon 권한을 뷰 5개의 SELECT 로 좁힌다 |
 | `src/types/db.ts` | `ShowcaseItemRow` · `SyncRunKind` |
-| [`docs/MOBILE_OAUTH2.md`](MOBILE_OAUTH2.md) | 앱 인증 (Bearer 토큰 발급) |

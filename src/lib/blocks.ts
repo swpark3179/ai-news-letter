@@ -11,7 +11,7 @@ import type { Block, BlockColor, BlockSize } from "@/types/db";
  * (sync/trend.ts 가 `b.t?.trim()` 을 쓰고 있던 이유) 여기서 t 를 옵셔널로 다룬다.
  */
 
-/** 표 한 칸의 최대 길이. 서버 zod 스키마와 같은 값을 쓴다. */
+/** 표 크기 상한. 넘치는 행·열·글자는 normalizeBlock 이 잘라 낸다. */
 export const TABLE_MAX_COLS = 8;
 export const TABLE_MAX_ROWS = 30;
 export const TABLE_MAX_CELL_CHARS = 500;
@@ -28,19 +28,11 @@ export function blockHasContent(b: Block): boolean {
   return (b.t ?? "").trim().length > 0;
 }
 
-/** 글자수·읽는 시간 계산용 평문. 표는 캡션과 모든 셀을 합친다. */
-export function blockPlainText(b: Block): string {
-  if (b.type === "table") {
-    return [b.t ?? "", ...cells(b)].filter((s) => (s ?? "").trim()).join(" ");
-  }
-  return b.t ?? "";
-}
-
 /**
- * 저장 직전 정규화. `articles.body` 로 가는 유일한 통로에서 한 번만 돌린다.
+ * 렌더 직전 정규화 (BlockTable).
  *
- * body 열은 제약 없는 jsonb 이고 supabase 클라이언트도 untyped 라, 여기서
- * 걸러 내지 않으면 어떤 모양이든 그대로 들어간다. 두 가지를 정리한다.
+ * body 열은 제약 없는 jsonb 이고 supabase 클라이언트도 untyped 라, 어떤 모양이든
+ * 들어와 있을 수 있다. 두 가지를 정리한다.
  *   - table 이 아닌 블록에 붙은 rows 를 떼어 낸다.
  *   - 들쭉날쭉한 행을 머리행 길이에 맞춘다. 안 맞추면 렌더할 때 td 개수가
  *     행마다 달라져 표가 어긋난다.
