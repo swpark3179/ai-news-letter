@@ -64,6 +64,16 @@ export interface TrendDetail {
   origin_url: string | null;
 }
 
+/** mobile_hada_content 의 한 행 — 긱뉴스 · 쇼케이스 상세 페이지 본문 (마크다운) */
+export interface HadaContent {
+  key: string;
+  source: "geeknews" | "showcase";
+  body_md: string;
+  /** 수집기 상한(20,000자)에 걸려 잘렸는지 */
+  truncated: boolean;
+  fetched_at: string;
+}
+
 /** mobile_issue — 항상 한 행. 건수는 오늘(KST) 수집분이고 숨긴 글은 세지 않는다. */
 export interface IssueRow {
   issue_no: number;

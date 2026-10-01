@@ -124,6 +124,18 @@
   text-wrap: pretty;
 }
 
+/** 본문이 아직 없거나 잘렸을 때의 안내 */
+.notice {
+  margin: 0 0 17px;
+  padding: 14px 16px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  font-size: 14px;
+  line-height: 1.7;
+  color: var(--gray-700);
+}
+
 .aside {
   padding-top: 30px;
 }
@@ -234,4 +246,46 @@
   margin-top: 4px;
   font-size: 11px;
   color: var(--gray-500);
+}
+
+/* ---------- 좁은 화면 ---------- */
+
+@media (max-width: 960px) {
+  .contentGrid {
+    grid-template-columns: minmax(0, 1fr);
+    gap: 0;
+  }
+
+  .asideSticky {
+    position: static;
+  }
+}
+
+@media (max-width: 640px) {
+  .wrap {
+    padding: 0 0 48px;
+  }
+
+  .paper {
+    padding: 20px 16px 36px;
+    border: none;
+    box-shadow: none;
+  }
+
+  .head {
+    text-align: left;
+  }
+
+  .title {
+    font-size: 28px;
+    letter-spacing: -1px;
+  }
+
+  .deck {
+    font-size: 16px;
+  }
+
+  .p {
+    font-size: 16px;
+  }
 }

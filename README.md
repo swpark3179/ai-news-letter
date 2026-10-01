@@ -14,15 +14,19 @@ anon 키로 직접 읽습니다 (`supabase/migrations/0013` · `0016` · `0017` 
 
 ## 카테고리
 
+앱의 탭 · 칩과 같은 다섯 갈래입니다.
+
 | 카테고리 | 출처 | 채우는 방법 |
 |---|---|---|
-| 긱뉴스 데일리 | news.hada.io | 자동 수집 — **LLM 미사용**, 제목·요약을 원문 그대로 |
-| 트렌드 브리핑 | GitHub Trending · Hacker News · arXiv | 자동 수집 + LLM 이 한국어 기사 작성 |
+| 긱뉴스 | news.hada.io | 자동 수집 — **LLM 미사용**, 제목·요약·본문을 원문 그대로 |
+| 쇼케이스 | news.hada.io/show (직접 만든 것 소개) | 같음 |
+| GitHub | GitHub Trending | 자동 수집 + LLM 이 한국어 기사 작성 |
+| Hacker News | Hacker News | 같음 |
+| arXiv | arXiv | 같음 |
 
-이와 별도로 **쇼케이스**(news.hada.io/show — 직접 만든 것 소개)를 매일 수집해
-`showcase_items` 에 쌓고 있습니다. 웹 화면은 아직 없고, 앱은 `mobile_showcase`
-뷰(0016)로 읽습니다. 스키마와 조회 방법은
-[docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) 를 보세요.
+웹과 앱은 같은 뷰(`mobile_feed` · `mobile_showcase` · `mobile_trend_detail` ·
+`mobile_hada_content` · `mobile_issue`)를 같은 anon 키로 읽습니다. 쇼케이스의
+스키마와 조회 방법은 [docs/SHOWCASE_QUERY.md](docs/SHOWCASE_QUERY.md) 를 보세요.
 
 ---
 
@@ -48,9 +52,13 @@ npm run dev                          # http://localhost:3000
 
 | 경로 | 내용 |
 |---|---|
-| `/` | 1면 — 머리기사 3단 조판, 출처 3열, 긱뉴스 사이드바 |
-| `/sections/[geek\|trend]` | 카테고리 목록 (트렌드는 출처 필터) |
+| `/` | 1면 — 카테고리마다 마지막으로 수집한 날 것을 전부. 머리기사 3단 조판, GitHub · HN · arXiv 3열, 긱뉴스 · 쇼케이스 사이드바 |
+| `/sections/[geek\|show\|github\|hn\|arxiv]` | 카테고리 목록 — 수집한 날로 묶어 7일씩 (`?until=YYYY-MM-DD`), `?q=` 검색 |
+| `/search?q=` | 다섯 카테고리 한꺼번에 검색 |
+| `/articles/geek/[...ref]` · `/articles/show/[...ref]` | 긱뉴스 · 쇼케이스 본문 (`mobile_hada_content` 의 마크다운) |
 | `/articles/trend/[publicId]` | 트렌드 브리핑 상세 |
+
+예전 주소 `/sections/trend?filter=<출처>` 는 `/sections/<출처>` 로 308 리다이렉트됩니다.
 
 ---
 

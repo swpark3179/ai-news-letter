@@ -113,3 +113,20 @@
 .iconBtn:hover {
   background: var(--gray-50);
 }
+
+/* 휴대폰 — 로고 글자를 빼고 내비를 가로로 흘린다 (높이는 그대로 두어 날짜 머리의 sticky top 과 맞춘다) */
+@media (max-width: 640px) {
+  .inner {
+    padding: 0 16px;
+    gap: 12px;
+  }
+
+  .logoText {
+    display: none;
+  }
+
+  .navItem {
+    padding: 8px 7px;
+    font-size: 13.5px;
+  }
+}

@@ -1,0 +1,155 @@
+/*
+ * 긱뉴스 · 쇼케이스 본문 (Markdown.tsx). 트렌드 기사 본문(article.module.css 의 .p ·
+ * .h3 · .quote)과 같은 지면 타이포그래피에 맞춘다. 남이 쓴 마크다운이라 요소가
+ * 다양해서, 클래스 대신 .md 아래 요소 선택자로 잡는다.
+ */
+
+.md {
+  font: 400 16.5px/1.85 var(--font-sans);
+  color: var(--gray-800);
+  overflow-wrap: break-word;
+}
+
+.md > :first-child {
+  margin-top: 0;
+}
+
+.md p {
+  margin: 0 0 17px;
+  text-wrap: pretty;
+}
+
+.md h2,
+.md h3,
+.md h4,
+.md h5,
+.md h6 {
+  margin: 30px 0 12px;
+  font-weight: 800;
+  letter-spacing: -0.6px;
+  line-height: 1.35;
+  color: var(--gray-900);
+}
+
+.md h2 {
+  font-size: 22px;
+}
+
+.md h3 {
+  font-size: 19px;
+}
+
+.md h4,
+.md h5,
+.md h6 {
+  font-size: 17px;
+}
+
+.md ul,
+.md ol {
+  margin: 0 0 17px;
+  padding-left: 1.4em;
+}
+
+.md li {
+  margin: 4px 0;
+}
+
+.md li > ul,
+.md li > ol {
+  margin: 4px 0 0;
+}
+
+.md li::marker {
+  color: var(--gray-400);
+}
+
+.md strong {
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
+.md a {
+  color: var(--purple-700);
+  text-decoration: underline;
+  text-decoration-color: var(--purple-200);
+  text-underline-offset: 3px;
+  overflow-wrap: anywhere;
+}
+
+.md a:hover {
+  text-decoration-color: var(--purple-600);
+}
+
+.md blockquote {
+  margin: 22px 0;
+  padding: 14px 20px;
+  background: var(--purple-50);
+  border-left: 3px solid var(--purple-600);
+  color: var(--purple-900);
+}
+
+.md blockquote > :last-child {
+  margin-bottom: 0;
+}
+
+.md code {
+  font-family: var(--font-mono);
+  font-size: 0.86em;
+  background: var(--gray-100);
+  padding: 1px 5px;
+  border-radius: var(--radius-sm);
+}
+
+.md pre {
+  margin: 0 0 17px;
+  padding: 14px 16px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+  overflow-x: auto;
+  line-height: 1.6;
+}
+
+.md pre code {
+  background: none;
+  padding: 0;
+  font-size: 13px;
+}
+
+.md hr {
+  margin: 28px 0;
+  border: none;
+  border-top: 1px solid var(--gray-200);
+}
+
+.md img {
+  max-width: 100%;
+  height: auto;
+  border-radius: var(--radius-md);
+}
+
+.tableWrap {
+  margin: 0 0 17px;
+  overflow-x: auto;
+}
+
+.md table {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 14.5px;
+  line-height: 1.6;
+}
+
+.md th,
+.md td {
+  padding: 8px 11px;
+  border: 1px solid var(--gray-200);
+  text-align: left;
+  vertical-align: top;
+}
+
+.md th {
+  background: var(--gray-50);
+  font-weight: 700;
+}
