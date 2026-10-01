@@ -88,8 +88,9 @@ select indexname, indexdef
    and indexname = 'members_epid_key';
 
 
--- ⑪ 모바일 읽기 뷰 3개가 만들어졌는가 (0013)
---    기대: mobile_feed, mobile_issue, mobile_trend_detail
+-- ⑪ 모바일 읽기 뷰 5개가 만들어졌는가 (0013 · 0016 · 0017)
+--    기대: mobile_feed, mobile_hada_content, mobile_issue, mobile_showcase,
+--          mobile_trend_detail
 select table_name
   from information_schema.views
  where table_schema = 'public'
@@ -97,9 +98,9 @@ select table_name
  order by table_name;
 
 
--- ⑫ anon 이 읽을 수 있는 것이 그 세 뷰뿐인가 (0013)  ← 이 파일에서 제일 중요한 항목
+-- ⑫ anon 이 읽을 수 있는 것이 그 다섯 뷰뿐인가 (0018)  ← 이 파일에서 제일 중요한 항목
 --
---    기대: 정확히 3행. mobile_feed / mobile_issue / mobile_trend_detail 의 SELECT.
+--    기대: 정확히 5행. ⑪ 의 다섯 뷰 각각의 SELECT.
 --
 --    **여기에 그 밖의 것이 보이면 즉시 회수하세요.** anon 키는 앱 바이너리에 실려
 --    있어 사실상 공개된 값이다. 이 목록에 geek_news 같은 원본 표가 있으면 숨긴
@@ -108,21 +109,36 @@ select table_name
 --
 --      revoke all on public.<표 이름> from anon;
 --
---    SELECT 말고 INSERT · UPDATE · DELETE 가 보이는 것도 같은 뜻이다 —
---    0013 은 SELECT 만 준다.
+--    SELECT 말고 INSERT · UPDATE · DELETE 가 보이는 것도 같은 뜻이다. 실제로 그랬다 —
+--    Supabase 의 기본 권한이 새 뷰를 anon 에게 통째로 열어 두었고, 단순 뷰 셋은
+--    쓰기 가능한 뷰라 그 길로 원본 표를 고치거나 지울 수 있었다. 0018 이 닫았다.
+--    다시 보이면 0018 을 한 번 더 실행하세요 (몇 번을 돌려도 같은 상태가 됩니다).
 select table_name, privilege_type
   from information_schema.role_table_grants
  where grantee = 'anon'
  order by table_name, privilege_type;
 
+--    함수도 같은 눈으로 본다. 기대: 0 rows.
+--    security definer 함수는 소유자 권한으로 돌아서, anon 이 실행할 수 있으면
+--    /rest/v1/rpc/<이름> 이 그대로 뒷문이 된다.
+select p.oid::regprocedure as anon_이_실행할_수_있는_definer_함수
+  from pg_proc p
+ where p.pronamespace = 'public'::regnamespace
+   and p.prosecdef
+   and has_function_privilege('anon', p.oid, 'EXECUTE');
+
 
 -- ⑬ anon 으로 실제 읽어 본다 (0013)
 --
---    ⑫ 가 목록이라면 이건 실물 확인이다. **뒤의 넷은 실패하는 것이 정상**이라
+--    ⑫ 가 목록이라면 이건 실물 확인이다. **세 번째 줄부터는 실패하는 것이 정상**이라
 --    한 줄씩 끊어서 실행하세요 — 한꺼번에 돌리면 첫 실패에서 멈춥니다.
+--
+--    explain 은 권한 검사까지만 하고 실제로 지우지 않으므로 운영 DB 에서 돌려도 됩니다.
 --
 --    set role anon; select count(*) from public.mobile_feed;          -- 행 수가 나와야 정상
 --    set role anon; select * from public.mobile_issue;                -- 한 행이 나와야 정상
+--    set role anon; explain delete from public.mobile_trend_detail where key = '-';  -- permission denied 가 정상
+--    set role anon; explain update public.mobile_showcase set title = title;          -- permission denied 가 정상
 --    set role anon; select count(*) from public.geek_news;            -- permission denied 가 정상
 --    set role anon; select count(*) from public.trend_items;          -- permission denied 가 정상
 --    set role anon; select count(*) from public.scraps;               -- permission denied 가 정상
@@ -148,7 +164,8 @@ select * from public.mobile_issue;
 
 -- ⑯ 본문 저장소가 만들어졌는가 (0015)
 --    기대: hada_contents 한 행, rowsecurity = true.
---    anon 권한은 ⑫ 목록에 나타나면 안 된다 (본문 뷰는 아직 열지 않았다).
+--    anon 권한은 ⑫ 목록에 나타나면 안 된다 — 앱은 표가 아니라 0017 의
+--    mobile_hada_content 뷰로 본문을 읽는다.
 select tablename, rowsecurity
   from pg_tables
  where schemaname = 'public'

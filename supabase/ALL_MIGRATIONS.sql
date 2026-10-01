@@ -1302,3 +1302,271 @@ alter table public.hada_contents enable row level security;
 
 revoke all on public.hada_contents from anon, authenticated;
 
+-- ===========================================================================
+-- 0016_mobile_showcase.sql
+-- ===========================================================================
+
+-- 0016_mobile_showcase.sql
+-- 쇼케이스 목록을 앱에 열어 주는 뷰.
+--
+-- ---------------------------------------------------------------------------
+-- 왜 뷰인가
+-- ---------------------------------------------------------------------------
+-- 0014_showcase.sql 이 만든 showcase_items 는 표라서 anon 에게 닫혀 있다.
+-- 0013_mobile_read_access.sql 의 방침이 「표가 아니라 뷰만 연다」이고, 이 파일은
+-- 그 방침을 쇼케이스에 그대로 적용한 것이다 — 노출 범위가 뷰 정의로 고정되고,
+-- is_hidden 필터를 뷰 안에 박아 우회할 길을 없앤다.
+--
+-- 초안은 웹 저장소의 docs/SHOWCASE_QUERY.md 5장에 준비돼 있었다. 거기서 딱
+-- 한 곳만 다르다 — **type 컬럼을 더한다.** 앱의 FeedItem.fromJson 이 목록 한 줄을
+-- type 으로 갈라 읽으므로, 이 값이 없으면 쇼케이스만 파서를 따로 타야 한다.
+--
+-- ---------------------------------------------------------------------------
+-- mobile_feed 에 union 으로 합치지 않은 이유
+-- ---------------------------------------------------------------------------
+-- 홈은 mobile_feed 를 **필터 없이** 시간 역순으로 읽는다. 거기에 쇼케이스를 더하면
+-- 이미 배포된 앱 빌드의 홈 화면 내용이 그날로 바뀐다 — 앱에 칩이 생기기도 전에
+-- 쇼케이스가 뉴스 사이에 섞여 나온다. 뷰를 따로 두면 기존 빌드는 영향을 받지 않고,
+-- 새 앱 버전이 긱뉴스 탭의 「쇼케이스」 칩에서만 읽는다.
+-- ---------------------------------------------------------------------------
+
+drop view if exists public.mobile_showcase;
+
+create view public.mobile_showcase as
+select
+    'show'::text                                   as type,
+    s.url                                          as key,
+    s.title                                        as title,
+    s.summary                                      as lede,
+    -- mobile_feed 의 meta 규칙과 같은 모양: "my.tool · 12 points · 댓글 3"
+    concat_ws(' · ',
+      nullif(btrim(coalesce(s.source_domain, '')), ''),
+      s.points || ' points',
+      '댓글 ' || s.comment_count
+    )                                              as meta,
+    s.published_at                                 as published_at,
+    -- mobile_feed 와 일부러 다른 곳. 긱뉴스는 요약과 댓글이 토픽 페이지에 있어
+    -- 그쪽을 열지만, 쇼케이스에서 사람들이 보고 싶은 것은 「만든 것」이다.
+    -- 다만 external_url 이 비어 있는 글도 있어 토픽 URL 로 떨어뜨린다.
+    coalesce(nullif(btrim(coalesce(s.external_url, '')), ''), s.url) as open_url,
+    coalesce(s.source_domain, '')                  as host,
+    s.submitter                                    as maker,
+    concat_ws(' ', s.title, s.summary)             as search_text
+  from public.showcase_items s
+  where s.is_hidden = false;   -- ← 뷰 안에 박아 우회할 길을 없앤다
+
+comment on view public.mobile_showcase is
+  '모바일 쇼케이스 목록 — 직접 만든 것 소개. key(토픽 URL, 담기 키)와 open_url(만든 것의 주소)이 다르다. anon SELECT 허용.';
+
+-- 0013 과 같이 스키마 단위가 아니라 뷰 하나씩 명시한다.
+grant select on public.mobile_showcase to anon;
+
+-- ===========================================================================
+-- 0017_mobile_hada_content.sql
+-- ===========================================================================
+
+-- 0017_mobile_hada_content.sql
+-- 긱뉴스 / 쇼케이스 상세 페이지 **본문**을 앱에 열어 주는 뷰.
+--
+-- ---------------------------------------------------------------------------
+-- 0015_hada_contents.sql 이 남겨 둔 자리
+-- ---------------------------------------------------------------------------
+-- 0015 는 본문 저장소를 만들면서 RLS 를 켜고 정책은 두지 않았고, 마지막 주석이
+-- 이 파일을 예고해 두었다 — "모바일 앱에 본문을 열어 주는 뷰는 화면 설계가 끝난
+-- 뒤 따로 추가한다." 화면(긱뉴스 탭의 본문 상세)이 정해졌으므로 여기서 연다.
+--
+-- 본문을 담기 시작한 이유가 그대로 이 뷰의 이유다 — 앱이 news.hada.io 로 링크를
+-- 열어 주면 그 페이지에 광고가 섞여 읽기 불편하다. 본문만 앱 안에서 보여 준다.
+--
+-- ---------------------------------------------------------------------------
+-- 내보내지 않는 것
+-- ---------------------------------------------------------------------------
+--   status · attempts · last_error · container 는 수집기 운영값이다. 앱은
+--   「본문이 있다 / 없다」만 알면 되고, 셀렉터 이름이나 실패 사유가 anon 키로
+--   읽히는 앱 바이너리를 통해 나갈 이유가 없다.
+--
+--   그래서 status <> 'ok' 인 행은 아예 행이 없는 것으로 다룬다. 앱은 행이 없으면
+--   지금까지처럼 원문 리더로 떨어진다 — 실패를 화면에서 구분할 필요가 없다.
+--
+-- ---------------------------------------------------------------------------
+-- is_hidden 을 여기서 다시 거는 이유
+-- ---------------------------------------------------------------------------
+--   hada_contents 에는 is_hidden 이 없다(목록 테이블의 열이다). 그런데 앱은 이
+--   뷰에 url 을 직접 넣어 조회하므로, 운영자가 감춘 항목의 URL 을 알고 있으면
+--   본문만 따로 읽을 수 있게 된다. 목록에서 감춘 글의 본문이 남는 것은 감춘 게
+--   아니다. 0013·0014 의 「필터는 뷰 안에 박는다」 방침대로 부모를 확인한다.
+--
+--   PK 인덱스 두 개를 타는 exists 라 비용은 사실상 없다.
+-- ---------------------------------------------------------------------------
+
+drop view if exists public.mobile_hada_content;
+
+create view public.mobile_hada_content as
+select
+    c.url        as key,      -- geek_news.url / showcase_items.url 과 같은 값
+    c.source     as source,   -- geeknews | showcase
+    c.body_md    as body_md,
+    c.truncated  as truncated,
+    c.fetched_at as fetched_at
+  from public.hada_contents c
+ where c.status = 'ok'
+   and c.body_md <> ''
+   and (
+     (c.source = 'geeknews' and exists (
+        select 1 from public.geek_news g
+         where g.url = c.url and g.is_hidden = false))
+     or
+     (c.source = 'showcase' and exists (
+        select 1 from public.showcase_items s
+         where s.url = c.url and s.is_hidden = false))
+   );
+
+comment on view public.mobile_hada_content is
+  '모바일 긱뉴스·쇼케이스 본문. 수집에 성공한 행만, 감추지 않은 항목만 나간다. anon SELECT 허용.';
+
+grant select on public.mobile_hada_content to anon;
+
+-- ===========================================================================
+-- 0018_lock_anon_grants.sql
+-- ===========================================================================
+
+-- 0018_lock_anon_grants.sql
+-- anon 에게 열린 것을 「모바일 뷰 5개의 SELECT」로 다시 좁힌다.
+--
+-- ---------------------------------------------------------------------------
+-- 무엇이 새고 있었나
+-- ---------------------------------------------------------------------------
+-- 0013 · 0016 · 0017 은 뷰를 만들고 `grant select ... to anon` 한 줄만 적었다.
+-- 그런데 Supabase 프로젝트에는 public 스키마의 기본 권한(default privileges)이
+-- 깔려 있어서, postgres 가 새로 만드는 표·뷰·시퀀스·함수는 만들어지는 순간
+-- anon · authenticated 에게 **전부** 열린다. grant select 는 그 위에 같은 권한을
+-- 한 번 더 준 것일 뿐, 나머지를 거둬 가지 않는다.
+--
+-- 그 결과 실제 DB 에서 anon 이 갖고 있던 것:
+--
+--   ① 뷰 5개의 INSERT · UPDATE · DELETE · TRUNCATE · REFERENCES · TRIGGER.
+--      mobile_showcase · mobile_trend_detail · mobile_hada_content 는 FROM 이 하나인
+--      단순 뷰라 Postgres 가 자동으로 쓰기 가능한 뷰로 만든다. 뷰 소유자 postgres 는
+--      BYPASSRLS 라 RLS 도 막지 못한다. 즉 앱 바이너리에서 꺼낸 anon 키 하나로
+--      PostgREST 를 통해 trend_items · showcase_items · hada_contents 를 고치거나
+--      지울 수 있었다.
+--
+--   ② security definer 함수 9개의 EXECUTE. 그중 mobile_member_json(uuid, uuid) 는
+--      member id 만 넘기면 사번 · 이름 · 이메일을 돌려준다. 모바일 로그인 시절
+--      (어느 저장소에도 정의가 남아 있지 않다)의 잔재다.
+--
+--   ③ collector_transfers_id_seq 의 USAGE · SELECT · UPDATE.
+--
+-- VERIFY.sql ⑫ 가 이 상태를 잡는 항목이다. 뷰를 새로 만든 뒤에는 꼭 돌려 보세요.
+--
+-- ---------------------------------------------------------------------------
+-- 이 파일이 하는 일
+-- ---------------------------------------------------------------------------
+--   1. public 의 모든 표 · 뷰 · 시퀀스에서 anon · authenticated 권한을 회수한다.
+--   2. public 의 모든 함수에서 anon · authenticated 의 EXECUTE 를 회수하고,
+--      security definer 함수는 PUBLIC 의 EXECUTE 도 회수한다.
+--   3. 모바일 뷰 5개에 SELECT 만 다시 준다 (앱이 하는 일은 이것뿐이다).
+--   4. 기본 권한을 고쳐, 앞으로 만드는 객체가 저절로 열리지 않게 한다.
+--   5. 결과를 스스로 확인하고, 하나라도 남아 있으면 예외로 전체를 되돌린다.
+--
+-- 이름을 하나씩 적지 않고 카탈로그를 훑는 이유: 위 ② 의 함수들은 이 저장소의
+-- 마이그레이션에 없다. 이름을 적어 revoke 하면 새 프로젝트에서 ALL_MIGRATIONS.sql
+-- 을 돌릴 때 「함수가 없다」로 멈춘다. 훑으면 있는 것만 닫는다 — 그리고 나중에
+-- 무엇이 새로 생겨도 이 파일을 다시 돌리면 같은 상태로 돌아온다.
+--
+-- authenticated 도 같이 닫는다. 웹도 앱도 로그인을 하지 않으므로 이 역할로 들어오는
+-- 정상 요청이 없다. 열어 둘 이유가 없는 문이다.
+--
+-- service_role 은 건드리지 않는다. 수집기(GitHub Actions)가 그 키로 표에 쓴다.
+-- ---------------------------------------------------------------------------
+
+do $$
+declare
+  r record;
+begin
+  -- 1. 표 · 뷰 · 시퀀스. 확장이 소유한 객체는 확장이 관리하므로 건너뛴다.
+  for r in
+    select c.oid::regclass as obj, c.relkind
+      from pg_class c
+     where c.relnamespace = 'public'::regnamespace
+       and c.relkind in ('r', 'p', 'v', 'm', 'f', 'S')
+       and not exists (
+         select 1 from pg_depend d
+          where d.classid = 'pg_class'::regclass and d.objid = c.oid and d.deptype = 'e')
+  loop
+    if r.relkind = 'S' then
+      execute format('revoke all on sequence %s from anon, authenticated', r.obj);
+    else
+      execute format('revoke all on table %s from anon, authenticated', r.obj);
+    end if;
+  end loop;
+
+  -- 2. 함수. touch_updated_at() 같은 invoker 함수는 PUBLIC 실행 권한이 남아도
+  --    호출자 권한으로 돌아 아무것도 열지 못하므로 PUBLIC 은 definer 만 회수한다.
+  for r in
+    select p.oid::regprocedure as fn, p.prosecdef
+      from pg_proc p
+     where p.pronamespace = 'public'::regnamespace
+       and not exists (
+         select 1 from pg_depend d
+          where d.classid = 'pg_proc'::regclass and d.objid = p.oid and d.deptype = 'e')
+  loop
+    execute format('revoke execute on function %s from anon, authenticated', r.fn);
+    if r.prosecdef then
+      execute format('revoke execute on function %s from public', r.fn);
+    end if;
+  end loop;
+end $$;
+
+-- 3. 다시 여는 것은 이 다섯 줄뿐이다. 0013 · 0016 · 0017 의 grant 와 같은 내용이다.
+grant usage on schema public to anon;
+grant select on public.mobile_feed         to anon;
+grant select on public.mobile_trend_detail to anon;
+grant select on public.mobile_issue        to anon;
+grant select on public.mobile_showcase     to anon;
+grant select on public.mobile_hada_content to anon;
+
+-- 4. 기본 권한. 앞으로 postgres 가 public 에 만드는 객체는 anon · authenticated 에게
+--    아무것도 주지 않는다. 새 뷰를 앱에 열려면 그 마이그레이션에 grant select 를
+--    적는 것으로 충분하다 — 지금까지처럼.
+alter default privileges for role postgres in schema public
+  revoke all on tables from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on sequences from anon, authenticated;
+alter default privileges for role postgres in schema public
+  revoke all on functions from anon, authenticated;
+-- 함수의 PUBLIC 실행 권한은 스키마 단위가 아니라 전역 기본값이라 스키마를 지정해서는
+-- 회수되지 않는다. 그래서 이 한 줄은 postgres 가 만드는 모든 스키마의 함수에 걸린다.
+-- 클라이언트가 RPC 를 하나도 부르지 않는 구성이라 잃는 것이 없다.
+alter default privileges for role postgres
+  revoke execute on functions from public;
+
+-- 5. 스스로 확인한다. 예외가 나면 이 파일 전체가 되돌아간다.
+do $$
+declare
+  leaked text;
+begin
+  select string_agg(format('%s:%s', c.relname, p.priv), ', ' order by c.relname, p.priv)
+    into leaked
+    from pg_class c
+   cross join unnest(array['SELECT','INSERT','UPDATE','DELETE','TRUNCATE','REFERENCES','TRIGGER']) as p(priv)
+   where c.relnamespace = 'public'::regnamespace
+     and c.relkind in ('r', 'p', 'v', 'm', 'f')
+     and has_table_privilege('anon', c.oid, p.priv)
+     and not (p.priv = 'SELECT' and c.relname in (
+       'mobile_feed', 'mobile_trend_detail', 'mobile_issue', 'mobile_showcase', 'mobile_hada_content'));
+  if leaked is not null then
+    raise exception 'anon 에게 아직 열려 있는 표·뷰 권한: %', leaked;
+  end if;
+
+  select string_agg(p.oid::regprocedure::text, ', ')
+    into leaked
+    from pg_proc p
+   where p.pronamespace = 'public'::regnamespace
+     and p.prosecdef
+     and has_function_privilege('anon', p.oid, 'EXECUTE');
+  if leaked is not null then
+    raise exception 'anon 이 아직 실행할 수 있는 security definer 함수: %', leaked;
+  end if;
+end $$;
+
