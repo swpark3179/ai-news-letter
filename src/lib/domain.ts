@@ -80,7 +80,7 @@ export const CATEGORIES: readonly CategoryDef[] = [
     key: "geek",
     ko: "긱뉴스",
     en: "GeekNews",
-    note: "news.hada.io 에 올라온 글 — 매일 07:00 수집, 본문까지 이 사이트에서 읽는다",
+    note: "news.hada.io 에 올라온 글 — 매일 07:00 · 11:30 수집, 본문까지 이 사이트에서 읽는다",
     badge: SRC.gk,
     trendSource: null,
   },

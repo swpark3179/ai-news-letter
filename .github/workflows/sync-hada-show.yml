@@ -8,14 +8,15 @@ name: 쇼케이스 동기화
 #
 # 긱뉴스와 파일을 나눈 이유 — 한쪽이 실패해도 다른 쪽 실행 이력에 섞이지 않고,
 # 재실행과 수동 dispatch 를 따로 걸 수 있다.
+#
+# 언제 도나 — Supabase pg_cron 이 07:20 · 11:50 KST 에 workflow_dispatch 로 깨운다
+# (supabase/migrations/0022_sync_dispatch.sql). 긱뉴스(07:00 · 11:30)와 20분 띄운다 —
+# 같은 분에 두 잡이 같은 사이트를 치면 403 위험이 커진다. 그 호출이 끊기면
+# sync-watchdog.yml 이 늦게라도 대신 돌린다.
+#
+# 이 파일에 schedule 을 다시 달지 말 것 (sync-geeknews.yml 머리 주석).
 
 on:
-  schedule:
-    # 22:20 UTC = 07:20 KST
-    # 긱뉴스(22:00)와 20분 띄운다. 같은 분에 두 잡이 같은 사이트를 치면 403 위험이
-    # 커지고, GitHub 무료 러너의 정각 혼잡도 피할 수 있다.
-    # 무료 러너의 schedule 은 수 분~수십 분 지연되거나 건너뛸 수 있다.
-    - cron: "20 22 * * *"
   workflow_dispatch:
     inputs:
       days:

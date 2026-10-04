@@ -76,8 +76,8 @@ src/
     sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
     supabase/          read.ts(웹 · anon 키) · admin-client.ts(수집 스크립트 · service_role)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 21개 (0020 이후 안 쓰는 표는 graveyard 스키마에)
-.github/workflows/     동기화 워크플로 4개 + 진단 1개
+supabase/migrations/   스키마 SQL 22개 (0020 이후 안 쓰는 표는 graveyard 스키마에 · 0022 정시 실행 cron)
+.github/workflows/     동기화 워크플로 4개 + 백업(워치독) 1개 + 진단 1개
 ```
 
 **스타일링** — CSS Modules + `src/app/tokens.css`.
@@ -105,7 +105,7 @@ supabase/migrations/   스키마 SQL 21개 (0020 이후 안 쓰는 표는 gravey
 
 `https://news.hada.io/show?page=N` — 사람들이 **직접 만든 것을 소개하는** 게시판.
 성격이 달라 긱뉴스와 테이블(`showcase_items`)과 워크플로를 나눴습니다.
-매일 07:20 KST 에 돕니다 (긱뉴스와 20분 띄워 같은 사이트를 동시에 치지 않습니다).
+매일 07:20 · 11:50 KST 에 돕니다 (긱뉴스와 20분 띄워 같은 사이트를 동시에 치지 않습니다).
 
 - 목록 마크업이 메인과 같은 `div.topic_row` 라 **파서를 공유**합니다
   (`crawlHadaList` 에 경로만 갈아 끼움).

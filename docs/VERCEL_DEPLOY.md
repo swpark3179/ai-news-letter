@@ -17,7 +17,7 @@
                                  ▼
    모바일 앱 ── anon 키 ──▶  Supabase  (Postgres — 웹 · 앱 모두 mobile_* 뷰 5개만)
                                  ▲
-                                 │ 매일 07:00 · 07:10 · 07:20 KST
+                                 │ 매일 07:00 · 11:30 KST 회차 (pg_cron 이 workflow_dispatch 로 깨움)
                           GitHub Actions  (긱뉴스 · 트렌드 · 쇼케이스 수집 + LLM 기사 작성)
 ```
 
@@ -183,7 +183,8 @@ Vercel 과 GitHub Actions 는 **환경변수를 공유하지 않습니다.**
 3. `dry_run` 없이 1회 → 실제 적재
 4. 배포된 사이트를 새로고침 → 1면에 기사가 채워짐
 5. **트렌드 브리핑 동기화 (OpenAI)** 를 `limit: 5` 로 1회 → 품질 확인
-6. 이후 매일 07:00 / 07:10 / 07:20 KST 에 자동 실행
+6. [GITHUB_ACTIONS_SETUP.md 4절](GITHUB_ACTIONS_SETUP.md#4-정시-실행-켜기-supabase-pg_cron) 로 정시 실행을 켜면
+   매일 07:00 · 11:30 KST 회차에 자동 실행
 
 > **Supabase 무료 플랜은 일정 기간 무활동 시 프로젝트를 일시정지합니다.**
 > 매일 도는 수집이 있으면 정지되지 않습니다.

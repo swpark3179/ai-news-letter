@@ -234,3 +234,63 @@ select p.oid::regprocedure as graveyard_함수
 --    기대: false · false — 앱 · 웹의 키로는 graveyard 에 들어오지 못한다.
 select has_schema_privilege('anon', 'graveyard', 'USAGE')          as anon_접근,
        has_schema_privilege('authenticated', 'graveyard', 'USAGE') as authenticated_접근;
+
+
+-- ㉒ 수집 워크플로를 깨우는 cron 잡 (0022)
+--    기대: 6행, active 모두 true. 시각은 UTC 다 (KST - 9시간).
+--      sync-geeknews-0700  0 22 * * *    sync-geeknews-1130  30 2 * * *
+--      sync-trend-0710     10 22 * * *   sync-trend-1140     40 2 * * *
+--      sync-showcase-0720  20 22 * * *   sync-showcase-1150  50 2 * * *
+select jobname, schedule, active, command
+  from cron.job
+ where jobname like 'sync-%'
+ order by jobname;
+
+--    기대: false · false — 앱 · 웹의 키로는 ops 에 들어오지 못한다.
+select has_schema_privilege('anon', 'ops', 'USAGE')          as anon_접근,
+       has_schema_privilege('authenticated', 'ops', 'USAGE') as authenticated_접근;
+
+
+-- ㉓ 잡이 제시간에 돌았는가 (0022)
+--    succeeded 는 "요청을 큐에 넣었다" 까지다. GitHub 이 받아들였는지는 ㉔ 에서 본다.
+select j.jobname,
+       d.status,
+       d.start_time at time zone 'Asia/Seoul' as 시작_kst,
+       d.return_message
+  from cron.job_run_details d
+  join cron.job j on j.jobid = d.jobid
+ where j.jobname like 'sync-%'
+   and d.start_time > now() - interval '2 days'
+ order by d.start_time desc;
+
+
+-- ㉔ GitHub 이 dispatch 를 받아들였는가 (0022)
+--    기대: status_code = 204. pg_net 은 응답을 6시간만 남기므로 잡이 돈 직후에 본다.
+--      401  토큰이 만료됐거나 틀렸다 → ㉕ 와 docs/GITHUB_ACTIONS_SETUP.md 4절
+--      403  토큰에 Actions: Read and write 권한이 없다
+--      404  github_dispatch_repo 가 틀렸거나 토큰이 그 저장소에 닿지 않는다
+--      422  main 에 그 워크플로가 없거나 workflow_dispatch 가 빠졌다
+--    timed_out = true 이거나 error_msg 가 있으면 GitHub 까지 가지도 못한 것이다.
+select id,
+       status_code,
+       timed_out,
+       error_msg,
+       left(content, 200)               as 응답_앞부분,
+       created at time zone 'Asia/Seoul' as 시각_kst
+  from net._http_response
+ where created > now() - interval '6 hours'
+ order by created desc;
+
+
+-- ㉕ dispatch 에 쓰는 비밀값이 들어 있는가 (0022)
+--    기대: 2행, 값_있음 = true. 값 자체는 꺼내 보지 않는다.
+--    updated_at 으로 토큰을 언제 넣었는지 본다 — PAT 만료일에 맞춰 교체하세요.
+--      select vault.update_secret(
+--        (select id from vault.secrets where name = 'github_dispatch_token'),
+--        '<새 PAT>');
+select name,
+       length(decrypted_secret) > 0     as 값_있음,
+       updated_at at time zone 'Asia/Seoul' as 갱신_kst
+  from vault.decrypted_secrets
+ where name in ('github_dispatch_token', 'github_dispatch_repo')
+ order by name;
