@@ -38,7 +38,9 @@ export class GeminiProvider implements LlmProvider {
             responseMimeType: "application/json",
             // responseJsonSchema 가 표준 JSON Schema 를 그대로 받는다.
             responseJsonSchema: args.schema,
-            maxOutputTokens: args.maxOutputTokens ?? 8192,
+            // 배치 5건 × (도입 · 목록 · 소제목 문단) 이 8192 에서 잘리면 JSON 이
+            // 끊겨 배치가 통째로 버려진다. openai.ts 의 상한 주석과 같은 이유.
+            maxOutputTokens: args.maxOutputTokens ?? 16384,
             temperature: 0.4,
           },
         });

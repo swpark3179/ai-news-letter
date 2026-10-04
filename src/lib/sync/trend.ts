@@ -1,5 +1,5 @@
 import type { SupabaseClient } from "@supabase/supabase-js";
-import { blockHasContent } from "@/lib/blocks";
+import { blockHasContent, listItems } from "@/lib/blocks";
 import { kstDateString } from "@/lib/format";
 import {
   TREND_BATCH_SCHEMA,
@@ -10,7 +10,7 @@ import {
   type TrendDraftBatch,
   type TrendSourceInput,
 } from "@/lib/llm";
-import type { GeekNewsRow, TrendMetrics, TrendSource } from "@/types/db";
+import type { Block, GeekNewsRow, TrendMetrics, TrendSource } from "@/types/db";
 import { SyncRun } from "./run-log";
 import { fetchRecentPapers, paperContext } from "./sources/arxiv";
 import { fetchAllTrending, fetchRepoContext } from "./sources/github-trending";
@@ -24,6 +24,10 @@ import { fetchStoryContext, fetchTopStories } from "./sources/hackernews";
  *   3. 남은 신규를 출처별로 번갈아 뽑아 상한(maxNew) 안에 담음
  *   4. 뽑힌 항목의 본문 컨텍스트 수집 (README / 상위 댓글 / 초록)
  *   5. LLM 에 5건씩 묶어 보내 한국어 기사 생성 후 on conflict do nothing 으로 저장
+ *
+ * preview 면 2를 건너뛰고(이미 실린 항목도 다시 써 본다) 5에서 저장하지 않는다.
+ * 만든 기사는 결과의 previews 로 돌려준다 — 프롬프트를 고친 뒤 운영 DB 를 건드리지
+ * 않고 품질을 보는 길이다.
  */
 
 const BATCH_SIZE = 5;
@@ -45,6 +49,12 @@ export interface TrendSyncOptions {
   maxNew?: number;
   hnMinScore?: number;
   dryRun?: boolean;
+  /**
+   * LLM 으로 기사를 만들되 저장하지 않는다. 이미 저장된 URL 도 거르지 않으므로
+   * maxNew 를 작게 준다. dryRun 과 함께 주면 dryRun 이 이긴다 (LLM 도 안 부른다).
+   * sync_runs 에도 남기지 않는다 — 워치독이 "돌았다" 로 세지 않게.
+   */
+  preview?: boolean;
   provider?: "gemini" | "openai";
   trigger?: "schedule" | "manual";
   echo?: boolean;
@@ -60,6 +70,20 @@ export interface TrendSyncResult {
   skipped: number;
   /** 수집에 실패해 이번 실행에서 빠진 출처 (나머지 출처로 계속 진행한다) */
   failedSources: TrendSource[];
+  /** preview 로 만든 기사. preview 가 아니면 비어 있다. */
+  previews: TrendPreview[];
+}
+
+export interface TrendPreview {
+  sourceUrl: string;
+  source: TrendSource;
+  sourceLabel: string;
+  title: string;
+  deck: string | null;
+  body: Block[];
+  tags: string[];
+  /** 이미 실려 있던 항목이면 지금 실린 제목 · 덱 (비교용) */
+  previous: { title: string; deck: string | null } | null;
 }
 
 interface Candidate {
@@ -86,26 +110,33 @@ export async function syncTrend(
     opts.only && opts.only.length > 0 ? opts.only : DEFAULT_TREND_SOURCES,
   );
 
+  const preview = !!opts.preview && !opts.dryRun;
+  const previews: TrendPreview[] = [];
+
   // dry-run 이면 LLM 을 아예 만들지 않는다 (키 없이도 수집 검증 가능).
   let llm: LlmProvider | null = null;
   if (!opts.dryRun) {
     llm = getLlm(opts.provider);
   }
 
+  // preview 도 sync_runs 에 흔적을 남기지 않는다. 남기면 워치독이 그 기록을
+  // "이 회차는 돌았다" 로 읽고 정작 빠진 정기 실행을 대신 돌리지 않는다.
   const run = await SyncRun.start(db, {
     kind: "trend",
     provider: llm?.name ?? null,
     trigger: opts.trigger ?? "manual",
-    dryRun: opts.dryRun,
+    dryRun: opts.dryRun || preview,
     echo: opts.echo,
   });
 
   try {
     const sourceList = [...sources].join(", ");
     run.log(
-      llm
-        ? `트렌드 브리핑 수집 시작 · ${llm.name}/${llm.model} · 출처 ${sourceList} · 최대 ${maxNew}건`
-        : `트렌드 브리핑 수집 시작 · [dry-run] LLM 호출 없음 · 출처 ${sourceList}`,
+      !llm
+        ? `트렌드 브리핑 수집 시작 · [dry-run] LLM 호출 없음 · 출처 ${sourceList}`
+        : preview
+          ? `트렌드 브리핑 미리보기 · ${llm.name}/${llm.model} · 출처 ${sourceList} · 최대 ${maxNew}건 · [preview] 저장하지 않음`
+          : `트렌드 브리핑 수집 시작 · ${llm.name}/${llm.model} · 출처 ${sourceList} · 최대 ${maxNew}건`,
     );
 
     // --- 1. 후보 수집 ------------------------------------------------------
@@ -240,7 +271,7 @@ export async function syncTrend(
     if (candidates.length === 0) {
       run.log("수집된 후보가 없습니다.", "warn");
       await run.finish("success");
-      return { runId: run.id, fetched: 0, fresh: 0, inserted: 0, skipped: 0, failedSources };
+      return { runId: run.id, fetched: 0, fresh: 0, inserted: 0, skipped: 0, failedSources, previews };
     }
 
     // --- 2. 기존 URL 제외 ---------------------------------------------------
@@ -258,10 +289,12 @@ export async function syncTrend(
       for (const r of data ?? []) known.add(r.source_url);
     }
 
-    const unseen = candidates.filter((c) => !known.has(c.sourceUrl));
+    const unseen = preview ? candidates : candidates.filter((c) => !known.has(c.sourceUrl));
     run.skipped = candidates.length - unseen.length;
     run.log(
-      `신규 ${unseen.length}건 (${countLabel(unseen)}) · 이미 있는 항목 ${run.skipped}건 건너뜀`,
+      preview
+        ? `[preview] 이미 있는 항목 ${known.size}건도 다시 써 본다 (${countLabel(unseen)})`
+        : `신규 ${unseen.length}건 (${countLabel(unseen)}) · 이미 있는 항목 ${run.skipped}건 건너뜀`,
     );
 
     // 상한 안에서 출처를 골고루 담는다.
@@ -293,6 +326,7 @@ export async function syncTrend(
         inserted: 0,
         skipped: run.skipped,
         failedSources,
+        previews,
       };
     }
 
@@ -311,6 +345,7 @@ export async function syncTrend(
         inserted: 0,
         skipped: run.skipped,
         failedSources,
+        previews,
       };
     }
 
@@ -328,6 +363,20 @@ export async function syncTrend(
     }
     run.log(`컨텍스트 ${withContext.length}건 확보`);
 
+    // preview 로 이미 실린 항목을 다시 쓸 때, 지금 실린 제목 · 덱을 나란히 보여 준다.
+    const previous = new Map<string, { title: string; deck: string | null }>();
+    if (preview) {
+      const again = withContext.map((c) => c.sourceUrl).filter((u) => known.has(u));
+      if (again.length > 0) {
+        const { data } = await db
+          .from("trend_items")
+          .select("source_url, title, deck")
+          .in("source_url", again)
+          .returns<{ source_url: string; title: string; deck: string | null }[]>();
+        for (const r of data ?? []) previous.set(r.source_url, { title: r.title, deck: r.deck });
+      }
+    }
+
     // --- 4~5. 배치 생성 + 저장 ----------------------------------------------
     const batches = chunk(withContext, BATCH_SIZE);
     run.log(`${batches.length}개 배치로 기사 생성 시작 (배치당 ${BATCH_SIZE}건)`);
@@ -338,6 +387,7 @@ export async function syncTrend(
       const batch = batches[bi];
       const inputs: TrendSourceInput[] = batch.map((c, i) => ({
         index: i,
+        source: c.source,
         sourceLabel: c.sourceLabel,
         url: c.sourceUrl,
         context: c.context,
@@ -365,11 +415,7 @@ export async function syncTrend(
           run.log(`배치 ${bi + 1} · 알 수 없는 index ${d.index} 무시`, "warn");
           continue;
         }
-        // 빈 판정을 필터와 같은 기준으로 맞춘다. 예전에는 length 만 봐서,
-        // 공백만 든 블록으로 채워진 draft 가 통과해 body: [] 로 발행됐다.
-        const body = Array.isArray(d.body)
-          ? d.body.filter(blockHasContent)
-          : [];
+        const body = normalizeDraftBody(d.body);
 
         if (!d.title?.trim() || body.length === 0) {
           run.log(`배치 ${bi + 1} · 내용이 비어 ${c.sourceUrl} 건너뜀`, "warn");
@@ -399,6 +445,24 @@ export async function syncTrend(
         continue;
       }
 
+      if (preview) {
+        for (const r of rows) {
+          const c = batch.find((x) => x.sourceUrl === r.source_url)!;
+          previews.push({
+            sourceUrl: r.source_url,
+            source: r.source,
+            sourceLabel: c.sourceLabel,
+            title: r.title,
+            deck: r.deck,
+            body: r.body,
+            tags: r.tags,
+            previous: previous.get(r.source_url) ?? null,
+          });
+        }
+        run.log(`배치 ${bi + 1}/${batches.length} · ${rows.length}건 생성 (저장하지 않음)`);
+        continue;
+      }
+
       const { data: saved, error } = await db
         .from("trend_items")
         .upsert(rows, { onConflict: "source_url", ignoreDuplicates: true })
@@ -415,6 +479,8 @@ export async function syncTrend(
       run.log(`배치 ${bi + 1}/${batches.length} · ${saved?.length ?? 0}건 저장`);
     }
 
+    if (preview) run.log(`[preview] 기사 ${previews.length}건 생성 · 저장 0건`, "done");
+
     await run.finish("success");
     return {
       runId: run.id,
@@ -423,12 +489,45 @@ export async function syncTrend(
       inserted,
       skipped: run.skipped,
       failedSources,
+      previews,
     };
   } catch (e) {
     const msg = e instanceof Error ? e.message : String(e);
     await run.finish("failed", msg);
     throw e;
   }
+}
+
+/**
+ * LLM 이 낸 본문 블록을 저장할 모양으로 다듬는다.
+ *
+ * 스키마로 모양을 요구하지만 Gemini 는 어길 때가 있다 — t 를 빼먹거나, 없는 타입
+ * ("bullets" 따위)을 만들거나, list 항목에 글머리 기호를 붙인다. 저장 경로는 여기
+ * 하나뿐이고 웹 · 앱은 body 를 그대로 읽으므로 여기서 거른다.
+ *   - t 가 문자열이 아니면 버린다.
+ *   - 모르는 타입은 text 로 바꾼다 (내용은 살린다).
+ *   - type · t 말고 다른 속성은 떼어 낸다.
+ *   - list 는 listItems 로 정리한 항목을 줄바꿈으로 다시 잇는다. 앱은 이 블록을
+ *     줄바꿈 문단으로 보여 주므로 저장값이 깨끗해야 한다.
+ *   - 빈 블록은 필터와 같은 기준(blockHasContent)으로 버린다. 예전에는 length 만
+ *     봐서, 공백만 든 블록으로 채워진 draft 가 통과해 body: [] 로 발행됐다.
+ */
+export function normalizeDraftBody(raw: unknown): Block[] {
+  if (!Array.isArray(raw)) return [];
+  const out: Block[] = [];
+  for (const item of raw) {
+    if (!item || typeof item !== "object") continue;
+    const { type, t } = item as { type?: unknown; t?: unknown };
+    if (typeof t !== "string") continue;
+
+    const block: Block = {
+      type: type === "head" || type === "quote" || type === "list" ? type : "text",
+      t,
+    };
+    if (block.type === "list") block.t = listItems(block).join("\n");
+    if (blockHasContent(block)) out.push(block);
+  }
+  return out;
 }
 
 function chunk<T>(arr: T[], size: number): T[][] {

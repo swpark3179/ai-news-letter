@@ -10,14 +10,17 @@
 /**
  * 기사 본문 블록. trend_items.body 의 구조.
  *
- * 트렌드 브리핑을 쓰는 LLM 은 text/head/quote 만 낸다 (llm/prompts.ts 참고).
+ * 트렌드 브리핑을 쓰는 LLM 은 text/head/quote/list 만 낸다 (llm/prompts.ts 참고).
+ * list 는 「한눈에 보기」 목록이고, t 에 항목을 줄바꿈으로 이어 담는다 — 블록 모양이
+ * {type, t} 그대로라 이 타입을 모르는 읽기 쪽(예전 앱)도 줄바꿈 문단으로 보여 준다.
+ * 항목 정리는 lib/blocks.ts 의 listItems 가 맡는다.
  * "table" 과 서식 속성(align/size/color)은 예전 기사 작성 화면이 쓰던 것인데,
  * jsonb 라 무엇이든 들어올 수 있으므로 읽는 쪽은 table 을 만나도 죽지 않게 쓴다.
  *
  * 서식 값은 전부 열거형이다. 자유 문자열을 받아 style 로 흘리지 않는다 —
  * 색상·크기는 CSS 모듈 클래스로만 매핑된다(components/article/blocks.module.css).
  */
-export type BlockType = "text" | "head" | "quote" | "table";
+export type BlockType = "text" | "head" | "quote" | "list" | "table";
 export type BlockAlign = "left" | "center" | "right";
 export type BlockSize = "sm" | "md" | "lg";
 export type BlockColor =
@@ -31,7 +34,7 @@ export type BlockColor =
 
 export interface Block {
   type: BlockType;
-  /** table 이면 표 설명(캡션). 비어 있어도 된다. */
+  /** table 이면 표 설명(캡션). 비어 있어도 된다. list 면 줄바꿈으로 구분한 항목. */
   t: string;
   /** 이하 전부 optional — 서식 없이 발행된 기존 행이 그대로 렌더돼야 한다. */
   align?: BlockAlign;

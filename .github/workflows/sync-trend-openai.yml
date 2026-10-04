@@ -30,9 +30,17 @@ on:
         type: boolean
         required: false
         default: false
+      preview:
+        description: "기사를 만들어 보기만 하고 저장하지 않음 (이미 저장된 항목도 다시 써서 비교 · limit 을 작게)"
+        type: boolean
+        required: false
+        default: false
 
 concurrency:
-  group: sync-trend
+  # dry_run · preview 는 저장하지 않으므로 정기 실행과 같은 줄에 세우지 않는다.
+  # 한 그룹에는 실행 하나와 대기 하나만 있을 수 있어서, 새 대기가 들어오면 앞의
+  # 대기가 취소된다 — 미리보기가 그 자리를 차지해 정기 실행을 밀어내면 안 된다.
+  group: ${{ (github.event.inputs.preview == 'true' || github.event.inputs.dry_run == 'true') && format('sync-trend-try-{0}', github.run_id) || 'sync-trend' }}
   cancel-in-progress: false
 
 permissions:
@@ -78,9 +86,11 @@ jobs:
 
       - name: 트렌드 브리핑 수집 및 기사 생성
         # only 를 비워 두면 스크립트 기본값(github,hn,arxiv)이 쓰인다.
-        # schedule 로 돌 때는 입력이 없으므로 세 출처를 모두 수집한다.
+        # pg_cron 은 입력 없이 깨우므로 기본값(세 출처 · 30건 · 저장)으로 돈다.
+        # dry_run 과 preview 가 함께 켜지면 dry_run 이 이긴다 (LLM 도 부르지 않는다).
         run: |
           ARGS=""
           [ "${{ github.event.inputs.dry_run }}" = "true" ] && ARGS="$ARGS --dry-run"
+          [ "${{ github.event.inputs.preview }}" = "true" ] && ARGS="$ARGS --preview"
           [ -n "${{ github.event.inputs.only }}" ] && ARGS="$ARGS --only=${{ github.event.inputs.only }}"
           npm run sync:trend -- $ARGS

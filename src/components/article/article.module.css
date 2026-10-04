@@ -124,6 +124,44 @@
   text-wrap: pretty;
 }
 
+/** 「한눈에 보기」 — list 블록. 도입 문단 바로 아래 오는 2~3줄 요약 */
+.glance {
+  margin: 4px 0 28px;
+  padding: 16px 20px 14px;
+  background: var(--gray-50);
+  border: 1px solid var(--gray-200);
+  border-radius: var(--radius-md);
+}
+
+.glanceLabel {
+  margin: 0 0 8px;
+  font: 700 12px/1.4 var(--font-sans);
+  letter-spacing: 0.4px;
+  color: var(--purple-600);
+}
+
+.glanceList {
+  margin: 0;
+  padding-left: 1.15em;
+}
+
+.glanceList li {
+  margin: 5px 0;
+  font: 400 15.5px/1.7 var(--font-sans);
+  color: var(--gray-800);
+  text-wrap: pretty;
+}
+
+.glanceList li::marker {
+  color: var(--gray-400);
+}
+
+.glanceKey {
+  margin-right: 6px;
+  font-weight: 700;
+  color: var(--gray-900);
+}
+
 /** 본문이 아직 없거나 잘렸을 때의 안내 */
 .notice {
   margin: 0 0 17px;
@@ -287,5 +325,13 @@
 
   .p {
     font-size: 16px;
+  }
+
+  .glance {
+    padding: 14px 16px 12px;
+  }
+
+  .glanceList li {
+    font-size: 15px;
   }
 }

@@ -14,6 +14,8 @@ if (proxy) console.log(`· 프록시 사용: ${proxy}`);
 
 export interface CliArgs {
   dryRun: boolean;
+  /** LLM 으로 만들어 보기만 하고 저장하지 않음 (sync:trend) */
+  preview: boolean;
   limit: number | null;
   provider: "gemini" | "openai" | undefined;
   days: number | null;
@@ -28,6 +30,7 @@ export interface CliArgs {
 export function parseArgs(argv: string[] = process.argv.slice(2)): CliArgs {
   const args: CliArgs = {
     dryRun: false,
+    preview: false,
     limit: null,
     provider: undefined,
     days: null,
@@ -46,6 +49,9 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): CliArgs {
     switch (key) {
       case "--dry-run":
         args.dryRun = true;
+        break;
+      case "--preview":
+        args.preview = true;
         break;
       case "--limit":
         args.limit = Number(value);
@@ -69,8 +75,13 @@ export function parseArgs(argv: string[] = process.argv.slice(2)): CliArgs {
       case "-h":
         args.help = true;
         break;
-      default:
+      case "":
         break;
+      default:
+        // 모르는 인자는 멈춘다. 예전에는 조용히 무시했는데, 그러면 오타 난
+        // --preveiw 가 저장하는 정식 실행이 되어 운영 DB 에 그대로 쓴다.
+        console.error(`알 수 없는 인자: ${raw}  (--help 로 쓸 수 있는 인자를 보세요)`);
+        process.exit(1);
     }
   }
 
