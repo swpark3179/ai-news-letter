@@ -37,7 +37,7 @@ export default function Masthead({ issueNo, editionDate, slots, today }: Props) 
       <div className={s.mastRow}>
         <span>{formatIssue(issueNo)}</span>
         <span className={s.mastDate}>{longDateKo(today)}</span>
-        <span className={s.mastSchedule}>매일 07:00 KST 발행</span>
+        <span className={s.mastSchedule}>매일 07:00 · 11:30 KST 갱신</span>
       </div>
 
       <div className={s.titleBlock}>

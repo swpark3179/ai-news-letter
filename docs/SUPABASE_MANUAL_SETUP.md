@@ -42,7 +42,7 @@ https://supabase.com/dashboard 에서 **New project** 를 만듭니다. 운영�
 
 ## 2단계 — 스키마 적용
 
-마이그레이션 21개를 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 을 씁니다.
+마이그레이션 22개를 하나로 합친 **`supabase/ALL_MIGRATIONS.sql`** 을 씁니다.
 
 ```powershell
 Get-Content supabase/ALL_MIGRATIONS.sql -Raw | Set-Clipboard   # Windows
@@ -65,6 +65,7 @@ public 표 6개    geek_news  showcase_items  trend_items  hada_contents   콘�
 public 뷰 5개    mobile_feed  mobile_showcase  mobile_trend_detail
                  mobile_hada_content  mobile_issue                       웹 · 앱이 읽는 것
 graveyard        예전 기능(로그인 · 기사 · 모임 · 보관함)의 빈 표 12개
+ops · cron 잡 6개  수집 워크플로를 07:00 · 11:30 KST 에 깨우는 pg_cron 잡 (0022)
 시드             app_settings.issue_no 한 건
 ```
 
@@ -95,7 +96,12 @@ graveyard        예전 기능(로그인 · 기사 · 모임 · 보관함)의 �
 0019_web_read_columns  뷰 끝에 웹용 열 (collected_date · score · origin_url)
 0020_graveyard         안 쓰는 표 · 함수를 graveyard 로
 0021_app_settings_trim app_settings 를 issue_no 만
+0022_sync_dispatch     pg_cron · pg_net 켜고 수집 워크플로를 깨우는 잡 6개
 ```
+
+`0022` 는 GitHub 토큰이 Vault 에 들어 있어야 실제로 무언가를 보냅니다. 없으면 잡이
+경고만 남기고 넘어가므로 먼저 돌려 두어도 됩니다. 토큰 넣는 법은
+[GITHUB_ACTIONS_SETUP.md 4절](GITHUB_ACTIONS_SETUP.md#4-정시-실행-켜기-supabase-pg_cron).
 
 > psql 로 한 파일씩 돌린다면 `--single-transaction` 을 붙이세요. 파일 끝의 자체
 > 확인이 실패했을 때 그 파일 전체가 되돌아갑니다.
@@ -119,6 +125,8 @@ graveyard        예전 기능(로그인 · 기사 · 모임 · 보관함)의 �
 | ⑫ | anon 에게 열린 것 | **뷰 5개의 SELECT 뿐** ← 가장 중요합니다 |
 | ⑳ | 뷰 끝의 웹용 열 | 3행 |
 | ㉑ | graveyard | 표 12개, anon 접근 `false` |
+| ㉒ | 정시 실행 cron 잡 | 6행, 모두 active |
+| ㉔ | GitHub 응답 | 잡이 돈 뒤 `status_code = 204` |
 
 ③이 0건인 것은 의도한 구성입니다. 표에 직접 닿는 것은 수집기의 `service_role`
 뿐이고, 웹 · 앱은 표가 아니라 뷰를 읽습니다. 뷰는 정책이 아니라 `grant` 로 열려
@@ -201,9 +209,9 @@ select kind, provider, status, fetched_count, inserted_count, skipped_count, err
 ## 관련 파일
 
 ```
-supabase/ALL_MIGRATIONS.sql   마이그레이션 21개 통합본 — 붙여넣기용 (생성물)
-supabase/VERIFY.sql           적용 확인 쿼리 ①~㉑
-supabase/migrations/          개별 마이그레이션 0001~0021
+supabase/ALL_MIGRATIONS.sql   마이그레이션 22개 통합본 — 붙여넣기용 (생성물)
+supabase/VERIFY.sql           적용 확인 쿼리 ①~㉕
+supabase/migrations/          개별 마이그레이션 0001~0022
 supabase/LIVE_ONLY.md         운영 DB 에만 있고 마이그레이션에는 없는 객체
 scripts/bundle-sql.mjs        npm run sql:bundle — 통합본 재생성
 ```

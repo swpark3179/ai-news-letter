@@ -16,14 +16,57 @@ export const TABLE_MAX_COLS = 8;
 export const TABLE_MAX_ROWS = 30;
 export const TABLE_MAX_CELL_CHARS = 500;
 
+/** 「한눈에 보기」 목록 항목 상한. 프롬프트는 2~3개를 요구한다. */
+export const LIST_MAX_ITEMS = 5;
+
+/**
+ * 줄머리 글머리 기호 — `•` `·` `-` `*` `1.` `1)`. 프롬프트가 막아도 LLM 이 붙여 온다.
+ * `-` `*` 와 번호는 뒤에 공백(또는 줄 끝)이 있을 때만 기호로 본다 — "-50% 비용",
+ * "1.5배" 를 깎지 않으려고.
+ */
+const LIST_MARKER = /^(?:[•·]\s*|[-*](?:\s+|$)|\d{1,2}[.)](?:\s+|$))/;
+
+/**
+ * list 블록의 t 를 항목 배열로 편다.
+ * 줄 단위로 나누고, 글머리 기호와 빈 줄을 걷어 내고, 상한에서 자른다.
+ * 저장 직전(sync/trend.ts)과 렌더(ArticleBody)가 같은 규칙을 쓴다.
+ */
+export function listItems(b: Block): string[] {
+  return (b.t ?? "")
+    .split(/\r?\n/)
+    .map((line) => line.trim().replace(LIST_MARKER, "").trim())
+    .filter((line) => line.length > 0)
+    .slice(0, LIST_MAX_ITEMS);
+}
+
+/**
+ * 「라벨: 내용」 꼴의 항목을 둘로 나눈다. 라벨이 없으면 key 가 null.
+ *
+ * 라벨로 보지 않는 것: 10자를 넘는 앞부분(문장 속 콜론), 숫자뿐인 앞부분("10:30"),
+ * 콜론 뒤가 // 인 것("https://…").
+ */
+export function splitListLabel(item: string): { key: string | null; rest: string } {
+  const m = /^([^:：]{1,10}?)\s*[:：]\s*(.+)$/.exec(item);
+  if (!m || /^\d+$/.test(m[1].trim()) || m[2].startsWith("//")) {
+    return { key: null, rest: item };
+  }
+  return { key: m[1].trim(), rest: m[2] };
+}
+
 function cells(b: Block): string[] {
   return (b.rows ?? []).flat();
 }
 
-/** 저장·표시할 만한 내용이 있는가. 표는 셀 하나라도 채워져 있으면 true. */
+/**
+ * 저장·표시할 만한 내용이 있는가. 표는 셀 하나라도 채워져 있으면 true,
+ * 목록은 글머리 기호를 걷어 낸 뒤 항목이 하나라도 남으면 true ("- \n- " 는 빈 것).
+ */
 export function blockHasContent(b: Block): boolean {
   if (b.type === "table") {
     return cells(b).some((c) => (c ?? "").trim().length > 0);
+  }
+  if (b.type === "list") {
+    return listItems(b).length > 0;
   }
   return (b.t ?? "").trim().length > 0;
 }

@@ -5,7 +5,9 @@ import { LlmError, type JsonSchema, type LlmProvider } from "./types";
 /**
  * OpenAI 백엔드.
  *
- * Structured Outputs(json_schema) 를 쓰므로 스키마를 벗어난 응답이 오지 않는다.
+ * Structured Outputs(json_schema, strict) 를 쓰므로 스키마를 벗어난 응답이 오지 않는다.
+ * strict 는 스키마의 모든 객체가 additionalProperties: false 이고 모든 속성이
+ * required 여야 받아 준다 — prompts.ts 의 TREND_BATCH_SCHEMA 가 그 모양이다.
  * 유료 API 라 기본적으로 입력이 학습에 사용되지 않는다.
  *
  * gpt-5.6 계열 주의사항 두 가지:
@@ -47,7 +49,7 @@ export class OpenAiProvider implements LlmProvider {
             type: "json_schema",
             json_schema: {
               name: "trend_articles",
-              strict: false,
+              strict: true,
               schema: args.schema as Record<string, unknown>,
             },
           },

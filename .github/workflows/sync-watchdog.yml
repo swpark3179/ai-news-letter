@@ -1,0 +1,116 @@
+name: 수집 백업 (워치독)
+
+# 정시 수집의 백업.
+#
+# 주 경로는 Supabase pg_cron 이 07:00 · 11:30 KST 회차마다 세 워크플로를
+# workflow_dispatch 로 깨우는 것이다 (supabase/migrations/0022_sync_dispatch.sql).
+# 그 호출이 끊기면 — PAT 만료, Vault 비밀값 누락, Supabase 장애 — 아무도 수집을
+# 돌리지 않는다. 이 워크플로가 그 빈자리를 늦게라도 메운다.
+#
+# 하는 일: 가장 최근 회차가 시작된 뒤로 sync_runs 에 성공 기록이 없는 수집만 깨운다.
+#   - dry-run · preview 는 sync_runs 에 쓰지 않으므로 "돌았다" 로 잘못 세지 않는다.
+#   - 이미 저장된 URL 은 다시 저장되지 않으므로(ignoreDuplicates) 겹쳐 돌아도 무해하다.
+#   - sync_runs 를 읽지 못하면 전부 빠진 것으로 보고 깨운다 (fail-open).
+#
+# schedule 은 이 파일에만 둔다. 공개 저장소에서 schedule 이 걸린 워크플로는 60일간
+# 커밋이 없으면 GitHub 이 꺼 버리는데, 그때 꺼지는 것이 이 백업뿐이게 하려는 것이다.
+# 수집 워크플로 셋은 dispatch 전용이라 꺼지지 않는다.
+
+on:
+  schedule:
+    # 회차 시작 40분 뒤로 예약한다. GitHub schedule 은 보통 2~4시간 늦게 돌지만,
+    # 제시간에 돌더라도 정시 경로(07:00~07:20 시작, 30분 안에 끝남)를 앞지르지 않게.
+    - cron: "40 22 * * *" # 아침 회차 (07:00 KST) 백업
+    - cron: "10 3 * * *" # 점심 회차 (11:30 KST) 백업
+  workflow_dispatch:
+    inputs:
+      dry_run:
+        description: "판정만 하고 깨우지 않음"
+        type: boolean
+        required: false
+        default: false
+
+concurrency:
+  group: sync-watchdog
+  cancel-in-progress: false
+
+permissions:
+  actions: write # gh workflow run
+
+jobs:
+  watch:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+
+    env:
+      SUPABASE_URL: ${{ secrets.SUPABASE_URL }}
+      SUPABASE_SERVICE_ROLE_KEY: ${{ secrets.SUPABASE_SERVICE_ROLE_KEY }}
+      GH_TOKEN: ${{ github.token }}
+      DRY_RUN: ${{ github.event.inputs.dry_run || 'false' }}
+
+    steps:
+      - name: 가장 최근 회차 이후 성공한 수집 확인
+        id: check
+        run: |
+          # 회차 시작 시각 (UTC) — 0022 의 cron 잡과 맞춘다.
+          #   아침 22:00 UTC (= 다음 날 07:00 KST) · 점심 02:30 UTC (= 11:30 KST)
+          now=$(date -u +%s)
+          today=$(date -u +%Y-%m-%d)
+          yesterday=$(date -u -d "$today -1 day" +%Y-%m-%d)
+          morning=$(date -u -d "$today 22:00" +%s)
+          lunch=$(date -u -d "$today 02:30" +%s)
+          if   [ "$now" -ge "$morning" ]; then since=$morning
+          elif [ "$now" -ge "$lunch" ];   then since=$lunch
+          else since=$(date -u -d "$yesterday 22:00" +%s)
+          fi
+          since_iso=$(date -u -d "@$since" +%Y-%m-%dT%H:%M:%SZ)
+          echo "기준 회차 시작: $since_iso ($(TZ=Asia/Seoul date -d "@$since" '+%m-%d %H:%M KST'))"
+
+          ok=""
+          if resp=$(curl -fsS --max-time 30 \
+                "$SUPABASE_URL/rest/v1/sync_runs?select=kind&status=eq.success&started_at=gte.$since_iso" \
+                -H "apikey: $SUPABASE_SERVICE_ROLE_KEY" \
+                -H "Authorization: Bearer $SUPABASE_SERVICE_ROLE_KEY"); then
+            ok=$(echo "$resp" | jq -r '[.[].kind] | unique | join(",")')
+            echo "그 뒤로 성공한 수집: ${ok:-없음}"
+          else
+            echo "::warning::sync_runs 를 읽지 못했다 — 전부 빠진 것으로 보고 깨운다"
+          fi
+
+          missing=""
+          for kind in geeknews trend showcase; do
+            case ",$ok," in
+              *",$kind,"*) ;;
+              *) missing="$missing $kind" ;;
+            esac
+          done
+          missing=$(echo $missing)
+          echo "빠진 수집: ${missing:-없음}"
+          echo "missing=$missing" >> "$GITHUB_OUTPUT"
+
+      - name: 빠진 수집 깨우기
+        if: steps.check.outputs.missing != ''
+        env:
+          MISSING: ${{ steps.check.outputs.missing }}
+        run: |
+          missing=" $MISSING "
+          wake() {
+            if [ "$DRY_RUN" = "true" ]; then
+              echo "[dry-run] $1 을 깨울 차례 — 건너뜀"
+            else
+              echo "→ $1"
+              gh workflow run "$1" -R "$GITHUB_REPOSITORY" --ref main
+            fi
+          }
+
+          if [[ "$missing" == *" geeknews "* ]]; then wake sync-geeknews.yml; fi
+          if [[ "$missing" == *" trend "* ]]; then wake sync-trend-openai.yml; fi
+          if [[ "$missing" == *" showcase "* ]]; then
+            # 긱뉴스와 같은 사이트(news.hada.io)를 긁는다. 둘 다 깨울 때는 정시 경로처럼
+            # 띄워서 403 을 피한다.
+            if [[ "$missing" == *" geeknews "* && "$DRY_RUN" != "true" ]]; then
+              echo "긱뉴스와 겹치지 않게 10분 기다린다"
+              sleep 600
+            fi
+            wake sync-hada-show.yml
+          fi

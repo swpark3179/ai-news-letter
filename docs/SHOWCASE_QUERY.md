@@ -23,7 +23,7 @@
 | 수집 대상 | `news.hada.io/` | `news.hada.io/show` |
 | 테이블 | `geek_news` | `showcase_items` |
 | 워크플로 | `.github/workflows/sync-geeknews.yml` | `.github/workflows/sync-hada-show.yml` |
-| 실행 시각 | 매일 07:00 KST | 매일 07:20 KST |
+| 실행 시각 | 매일 07:00 · 11:30 KST | 매일 07:20 · 11:50 KST |
 | 명령 | `npm run sync:geeknews` | `npm run sync:showcase` |
 | `sync_runs.kind` | `geeknews` | `showcase` |
 | LLM | 사용 안 함 | 사용 안 함 |
@@ -47,7 +47,7 @@ PK 는 테이블을 가로지르는 중복을 막지 못합니다. 그대로 두
 
 방향을 쇼케이스로 못박은 이유는 「누가 무엇을 만들었나」가 「읽을 거리 하나」보다
 좁고 확실한 정보이고, 무엇보다 **어느 수집기가 먼저 돌든 결과가 같아야** 하기
-때문입니다 (지금 일정은 긱뉴스 07:00 → 쇼케이스 07:20 이라 그날치는 긱뉴스에
+때문입니다 (지금 일정은 회차마다 긱뉴스 → 20분 뒤 쇼케이스라 그날치는 긱뉴스에
 먼저 들어갑니다).
 
 본문(`hada_contents`)은 지우지 않습니다. PK 가 같은 토픽 URL 이고 상세 페이지도
@@ -235,7 +235,7 @@ npm run sync:showcase                   # 실제 적재
 
 | 파일 | 역할 |
 |---|---|
-| `.github/workflows/sync-hada-show.yml` | 매일 07:20 KST 실행 |
+| `.github/workflows/sync-hada-show.yml` | 매일 07:20 · 11:50 KST 실행 (pg_cron 이 깨움) |
 | `scripts/sync/showcase.ts` | CLI 진입점 |
 | `src/lib/sync/showcase.ts` | 수집 → 중복 제거 → 적재 |
 | `src/lib/sync/hada-dedup.ts` | 긱뉴스 ↔ 쇼케이스 중복 정리 (양쪽 수집기 공용) |

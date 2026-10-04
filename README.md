@@ -76,8 +76,8 @@ src/
     sync/              수집 파이프라인 (sources/ 아래에 출처별 어댑터)
     supabase/          read.ts(웹 · anon 키) · admin-client.ts(수집 스크립트 · service_role)
 scripts/sync/          CLI 진입점 (tsx)
-supabase/migrations/   스키마 SQL 21개 (0020 이후 안 쓰는 표는 graveyard 스키마에)
-.github/workflows/     동기화 워크플로 4개 + 진단 1개
+supabase/migrations/   스키마 SQL 22개 (0020 이후 안 쓰는 표는 graveyard 스키마에 · 0022 정시 실행 cron)
+.github/workflows/     동기화 워크플로 4개 + 백업(워치독) 1개 + 진단 1개
 ```
 
 **스타일링** — CSS Modules + `src/app/tokens.css`.
@@ -105,7 +105,7 @@ supabase/migrations/   스키마 SQL 21개 (0020 이후 안 쓰는 표는 gravey
 
 `https://news.hada.io/show?page=N` — 사람들이 **직접 만든 것을 소개하는** 게시판.
 성격이 달라 긱뉴스와 테이블(`showcase_items`)과 워크플로를 나눴습니다.
-매일 07:20 KST 에 돕니다 (긱뉴스와 20분 띄워 같은 사이트를 동시에 치지 않습니다).
+매일 07:20 · 11:50 KST 에 돕니다 (긱뉴스와 20분 띄워 같은 사이트를 동시에 치지 않습니다).
 
 - 목록 마크업이 메인과 같은 `div.topic_row` 라 **파서를 공유**합니다
   (`crawlHadaList` 에 경로만 갈아 끼움).
@@ -199,15 +199,23 @@ Actions 러너는 IP 대역을 공유해서 첫 요청부터 429 가 오기도 �
 **상한은 출처별로 번갈아 나눠 담습니다.** GitHub Trending 합집합만 수십 건이라
 앞에서부터 자르면 30건이 GitHub 으로만 채워지고 HN·arXiv 가 매일 밀립니다.
 
+**기사 모양** (`src/lib/llm/prompts.ts`): 도입 2~3문장 → 「한눈에 보기」 목록
+(`list` 블록, 2~3항목) → 소제목 문단 1~3개 → 한계 · 써 보기 전에 확인할 것.
+"이 저장소는 ~" 처럼 대상을 주어로 세운 3인칭 소개 대신 "무엇을 시도했나" 로 바로
+들어갑니다. 골격은 출처마다 다릅니다 (저장소는 써 보는 법, HN 은 댓글의 찬반,
+논문은 결과 수치). 프롬프트를 고쳤으면 `--preview` 로 저장하지 않고 먼저 봅니다.
+
 ```bash
 npm run sync:trend                           # 기본 출처(github,hn,arxiv) 전부
 npm run sync:trend -- --dry-run              # LLM 없이 수집 대상만
+npm run sync:trend -- --preview --limit=6    # 기사를 만들어 보기만 (저장 안 함)
 npm run sync:trend -- --limit=5
 npm run sync:trend -- --provider=openai
 npm run sync:trend -- --only=github,arxiv
 ```
 
-정기 실행은 **트렌드 브리핑 동기화 (OpenAI)** 워크플로(07:10 KST)가 맡습니다.
+정기 실행은 **트렌드 브리핑 동기화 (OpenAI)** 워크플로(07:10 · 11:40 KST)가 맡습니다.
+시각은 GitHub schedule 이 아니라 Supabase pg_cron 이 쥡니다 (0022).
 Gemini 워크플로는 키를 등록한 뒤 수동으로 돌리는 용도입니다
 ([docs/GITHUB_ACTIONS_SETUP.md](docs/GITHUB_ACTIONS_SETUP.md)).
 
